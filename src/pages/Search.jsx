@@ -2,12 +2,16 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import SearchBar from "../components/search/SearchBar";
 import SearchResults from "../components/search/SearchResults";
+import GenreChip from "../components/music/GenreChip";
 import { searchAudiusTracks } from "../api/audius";
 import { fetchJamendoTrending } from "../api/jamendo";
 import { rankTracks } from "../utils/ranking";
 
+const filters = ["Songs", "Artists", "Albums", "Playlists", "Genres", "Downloadable"];
+
 export default function SearchPage() {
   const [query, setQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState("Songs");
 
   const { data: audiusResults = [] } = useQuery({
     queryKey: ["search-audius", query],
@@ -21,23 +25,27 @@ export default function SearchPage() {
   });
 
   const results = useMemo(() => {
-    const merged = query.trim() ? audiusResults : jamendoFallback;
-    return rankTracks(query, merged);
-  }, [audiusResults, jamendoFallback, query]);
+    let merged = query.trim() ? audiusResults : jamendoFallback;
+    merged = rankTracks(query, merged);
+
+    if (activeFilter === "Downloadable") {
+      return merged.filter((track) => Boolean(track.downloadUrl || track.localOnly));
+    }
+
+    return merged;
+  }, [activeFilter, audiusResults, jamendoFallback, query]);
 
   return (
-    <div className="space-y-6">
-      <section className="glass-panel rounded-[32px] p-6 lg:p-8">
-        <p className="text-xs uppercase tracking-[0.35em] text-accent-300">Search</p>
-        <h1 className="mt-3 font-display text-4xl font-semibold text-white">Search free music with a polished frontend shell.</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-400">
-          Josh-Fy blends reusable API adapters with a strong UI layer. Query Audius when available and fall back to
-          curated seed data for a stable portfolio experience.
-        </p>
-        <div className="mt-6">
-          <SearchBar value={query} onChange={setQuery} placeholder="Try synthwave, indie, rain, late-night, or an artist..." />
+    <div className="space-y-5">
+      <div className="sticky top-[65px] z-20 space-y-3 bg-slate-950/95 pb-2 pt-1 backdrop-blur xl:top-0">
+        <h1 className="font-display text-2xl font-semibold text-white">Search</h1>
+        <SearchBar value={query} onChange={setQuery} placeholder="Search songs, artists, moods..." large />
+        <div className="feed-scroll flex gap-2 overflow-x-auto pb-1">
+          {filters.map((filter) => (
+            <GenreChip key={filter} label={filter} active={filter === activeFilter} onClick={() => setActiveFilter(filter)} />
+          ))}
         </div>
-      </section>
+      </div>
 
       <SearchResults tracks={results} />
     </div>

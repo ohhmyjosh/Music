@@ -7,7 +7,7 @@
 :root {
   color-scheme: dark;
   font-family: Manrope, system-ui, sans-serif;
-  background: #070a08;
+  background: #050605;
 }
 
 html,
@@ -19,8 +19,9 @@ body,
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: #070a08;
-  background-image: radial-gradient(circle at top, rgba(34, 179, 95, 0.09), transparent 24%);
+  background-color: #050605;
+  background-image: radial-gradient(circle at top, rgba(34, 179, 95, 0.14), transparent 22%),
+    linear-gradient(180deg, #0a0b0a 0%, #060706 55%, #030403 100%);
 }
 
 * {
@@ -41,14 +42,15 @@ img {
 
 ::-webkit-scrollbar {
   width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.15);
+  background: rgba(15, 23, 42, 0.12);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.4);
+  background: rgba(100, 116, 139, 0.35);
   border-radius: 999px;
 }
 
@@ -57,11 +59,22 @@ img {
 }
 
 .section-title {
-  @apply font-display text-lg font-semibold tracking-tight text-slate-100;
+  @apply font-display text-base font-semibold tracking-tight text-slate-100;
 }
 
-.hero-grid {
-  background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-  background-size: 28px 28px;
+.feed-scroll {
+  scrollbar-width: none;
 }
+
+.feed-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.soft-ring {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 18px 70px rgba(34, 179, 95, 0.12);
+}
+
+.app-surface {
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+}
+

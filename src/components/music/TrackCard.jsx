@@ -3,15 +3,6 @@ import clsx from "clsx";
 import { usePlayerStore } from "../../store/playerStore";
 import { useLibraryStore } from "../../store/libraryStore";
 
-function formatDuration(seconds) {
-  if (!seconds) return "0:00";
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60)
-    .toString()
-    .padStart(2, "0");
-  return `${mins}:${secs}`;
-}
-
 export default function TrackCard({ track, queue = [], compact = false }) {
   const setTrack = usePlayerStore((state) => state.setTrack);
   const likedTrackIds = usePlayerStore((state) => state.likedTrackIds);
@@ -26,63 +17,58 @@ export default function TrackCard({ track, queue = [], compact = false }) {
   return (
     <article
       className={clsx(
-        "group glass-panel flex gap-4 rounded-[28px] p-4 transition hover:-translate-y-1 hover:bg-white/[0.07]",
-        compact ? "items-center" : "flex-col"
+        "app-surface flex gap-3 rounded-[22px] border border-white/10 p-3 text-left",
+        compact ? "min-w-[240px] items-center" : "min-w-[170px] flex-col"
       )}
     >
       <img
         src={track.artwork}
         alt={track.title}
-        className={clsx("rounded-3xl object-cover", compact ? "h-16 w-16" : "aspect-square w-full")}
+        className={clsx(compact ? "h-16 w-16 rounded-2xl object-cover" : "aspect-square w-full rounded-[20px] object-cover")}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="truncate text-base font-semibold text-white">{track.title}</p>
-            <p className="truncate text-sm text-slate-400">{track.artist}</p>
+            <p className="truncate text-sm font-semibold text-white">{track.title}</p>
+            <p className="truncate text-xs text-slate-400">{track.artist}</p>
           </div>
-          <button className="rounded-full p-2 text-slate-500 hover:text-rose-400" onClick={() => toggleLike(track.id)}>
-            <Heart size={16} fill={liked ? "currentColor" : "none"} className={liked ? "text-rose-400" : ""} />
+          <button className="rounded-full p-1.5 text-slate-500 hover:text-rose-400" onClick={() => toggleLike(track.id)}>
+            <Heart size={15} fill={liked ? "currentColor" : "none"} className={liked ? "text-rose-400" : ""} />
           </button>
         </div>
 
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-          <span className="rounded-full bg-white/5 px-2.5 py-1">{track.genre}</span>
-          <span>{formatDuration(track.duration)}</span>
-          <span>{track.source}</span>
+        <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-slate-500">
+          <span className="rounded-full bg-white/5 px-2 py-1">{track.genre}</span>
+          <span className="rounded-full bg-white/5 px-2 py-1">{track.source}</span>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           <button
-            className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-slate-950 transition hover:bg-accent-300"
+            className="inline-flex items-center gap-1.5 rounded-full bg-accent-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-accent-400"
             onClick={() => setTrack(track, queue.length ? queue : [track])}
           >
-            <Play size={14} />
+            <Play size={13} fill="currentColor" />
             Play
           </button>
           <button
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300 transition hover:bg-white/5"
+            className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-2 text-xs text-slate-300 transition hover:bg-white/5 disabled:opacity-40"
             onClick={() => saveTrackOffline(track)}
             disabled={!canSaveOffline}
-            title={
-              canSaveOffline
-                ? "Save for offline use"
-                : "Offline save is only available for allowed downloads or local imports"
-            }
           >
-            <Download size={14} />
+            <Download size={13} />
             Save
           </button>
           <button
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300 transition hover:bg-white/5"
+            className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-2 text-xs text-slate-300 transition hover:bg-white/5"
             onClick={() => playlists[0] && addTrackToPlaylist(playlists[0].id, track.id)}
           >
-            <Plus size={14} />
-            Playlist
+            <Plus size={13} />
+            Add
           </button>
         </div>
       </div>
     </article>
   );
 }
+

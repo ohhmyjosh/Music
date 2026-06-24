@@ -1,53 +1,53 @@
 import { useState } from "react";
-import SectionBlock from "../components/music/SectionBlock";
-import PlaylistList from "../components/library/PlaylistList";
+import { Plus } from "lucide-react";
 import { useLibraryStore } from "../store/libraryStore";
 import { waveboxSeeds } from "../utils/normalizeTrack";
+import PlaylistCard from "../components/music/PlaylistCard";
 
 export default function Playlists() {
   const [name, setName] = useState("");
   const playlists = useLibraryStore((state) => state.playlists);
-  const offlineTracks = useLibraryStore((state) => state.offlineTracks);
   const createPlaylist = useLibraryStore((state) => state.createPlaylist);
 
-  const tracksById = [...waveboxSeeds, ...offlineTracks].reduce((accumulator, track) => {
-    accumulator[track.id] = track;
-    return accumulator;
-  }, {});
-
   return (
-    <div className="space-y-8">
-      <section className="glass-panel rounded-[32px] p-6 lg:p-8">
-        <p className="text-xs uppercase tracking-[0.35em] text-accent-300">Playlists</p>
-        <h1 className="mt-3 font-display text-4xl font-semibold text-white">Build themed sets the way a music product should feel.</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-400">
-          This page shows the product thinking behind Josh-Fy: reusable playlist cards, fast creation flow, and a UI
-          pattern that can scale into collaboration or sync features later.
-        </p>
-        <form
-          className="mt-6 flex flex-col gap-3 sm:flex-row"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            if (!name.trim()) return;
-            await createPlaylist(name.trim());
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm text-slate-400">Collections</p>
+          <h1 className="font-display text-2xl font-semibold text-white">Playlists</h1>
+        </div>
+        <button
+          className="inline-flex items-center gap-2 rounded-full bg-accent-500 px-3 py-2 text-xs font-semibold text-slate-950 transition hover:bg-accent-400"
+          onClick={async () => {
+            const nextName = name.trim() || `Playlist ${playlists.length + 1}`;
+            await createPlaylist(nextName);
             setName("");
           }}
         >
-          <input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="Create a playlist"
-            className="glass-panel flex-1 rounded-full px-5 py-3 text-sm text-white outline-none placeholder:text-slate-500"
-          />
-          <button className="rounded-full bg-accent-500 px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-accent-400">
-            Save playlist
-          </button>
-        </form>
-      </section>
+          <Plus size={14} />
+          Create playlist
+        </button>
+      </div>
 
-      <SectionBlock title="Your collections" eyebrow="Saved playlists">
-        <PlaylistList playlists={playlists} tracksById={tracksById} />
-      </SectionBlock>
+      <input
+        value={name}
+        onChange={(event) => setName(event.target.value)}
+        placeholder="Name your playlist"
+        className="w-full rounded-full border border-white/10 bg-white/[0.05] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500"
+      />
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+        {playlists.map((playlist, index) => (
+          <PlaylistCard
+            key={playlist.id}
+            title={playlist.name}
+            subtitle={playlist.description || `${playlist.trackIds.length} tracks`}
+            artwork={waveboxSeeds[index % waveboxSeeds.length].artwork}
+            tracks={waveboxSeeds}
+            accent={index % 2 === 0 ? "from-emerald-400/20 to-lime-300/10" : "from-fuchsia-400/20 to-orange-300/10"}
+          />
+        ))}
+      </div>
     </div>
   );
 }
