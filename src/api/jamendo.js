@@ -1,12 +1,14 @@
-import { normalizeTrack, waveboxSeeds } from "../utils/normalizeTrack";
+import { normalizeTrack } from "../utils/normalizeTrack";
+import { demoTracks } from "../data/demoTracks";
 
+const demoCatalog = demoTracks.map((track) => normalizeTrack(track, "demo"));
 const JAMENDO_API = "https://api.jamendo.com/v3.0/tracks";
 
 export async function fetchJamendoTrending() {
   const clientId = import.meta.env.VITE_JAMENDO_CLIENT_ID;
 
   if (!clientId) {
-    return waveboxSeeds;
+    return demoCatalog.filter((track) => ["Pop", "R&B", "Hindi"].includes(track.genre)).slice(0, 8);
   }
 
   const url = new URL(JAMENDO_API);

@@ -1,13 +1,25 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { useLibraryStore } from "../store/libraryStore";
-import { waveboxSeeds } from "../utils/normalizeTrack";
+import { demoPlaylists } from "../data/demoPlaylists";
+import { normalizeTrack } from "../utils/normalizeTrack";
 import PlaylistCard from "../components/music/PlaylistCard";
 
 export default function Playlists() {
   const [name, setName] = useState("");
   const playlists = useLibraryStore((state) => state.playlists);
   const createPlaylist = useLibraryStore((state) => state.createPlaylist);
+
+  const playlistCards = [
+    ...demoPlaylists.slice(0, 5),
+    ...playlists.map((playlist, index) => ({
+      id: playlist.id,
+      title: playlist.name,
+      subtitle: playlist.description || `${playlist.trackIds.length} tracks`,
+      image: demoPlaylists[index % demoPlaylists.length].image,
+      tracks: demoPlaylists[index % demoPlaylists.length].tracks
+    }))
+  ];
 
   return (
     <div className="space-y-5">
@@ -37,14 +49,16 @@ export default function Playlists() {
       />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-        {playlists.map((playlist, index) => (
+        {playlistCards.map((playlist, index) => (
           <PlaylistCard
             key={playlist.id}
-            title={playlist.name}
-            subtitle={playlist.description || `${playlist.trackIds.length} tracks`}
-            artwork={waveboxSeeds[index % waveboxSeeds.length].artwork}
-            tracks={waveboxSeeds}
+            title={playlist.title}
+            subtitle={playlist.subtitle}
+            artwork={playlist.image}
+            tracks={(playlist.tracks || []).map((track) => normalizeTrack(track, "demo"))}
+            badge="Playlist"
             accent={index % 2 === 0 ? "from-emerald-400/20 to-lime-300/10" : "from-fuchsia-400/20 to-orange-300/10"}
+            onOpen={() => window.alert("Playlist view coming soon.")}
           />
         ))}
       </div>

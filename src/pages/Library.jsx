@@ -2,33 +2,36 @@ import { useMemo, useRef, useState } from "react";
 import { FolderUp } from "lucide-react";
 import { useLibraryStore } from "../store/libraryStore";
 import { usePlayerStore } from "../store/playerStore";
-import { waveboxSeeds } from "../utils/normalizeTrack";
+import { demoTracks } from "../data/demoTracks";
+import { demoPlaylists } from "../data/demoPlaylists";
+import { normalizeTrack } from "../utils/normalizeTrack";
 import GenreChip from "../components/music/GenreChip";
 import PlaylistCard from "../components/music/PlaylistCard";
 import TrackRow from "../components/music/TrackRow";
 
 const filters = ["Playlists", "Songs", "Albums", "Downloads", "Local files"];
+const tracks = demoTracks.map((track) => normalizeTrack(track, "demo"));
 
 export default function Library() {
   const [activeFilter, setActiveFilter] = useState("Playlists");
   const fileInputRef = useRef(null);
   const offlineTracks = useLibraryStore((state) => state.offlineTracks);
-  const playlists = useLibraryStore((state) => state.playlists);
   const importLocalTrack = useLibraryStore((state) => state.importLocalTrack);
   const recentlyPlayed = usePlayerStore((state) => state.recentlyPlayed);
+  const likedTrackIds = usePlayerStore((state) => state.likedTrackIds);
 
   const cards = useMemo(
     () => [
-      { title: "Liked Songs", subtitle: "Hearted tracks from your sessions", artwork: waveboxSeeds[0].artwork, tracks: waveboxSeeds },
-      { title: "Downloads", subtitle: `${offlineTracks.length} saved for the app`, artwork: offlineTracks[0]?.artwork || waveboxSeeds[1].artwork, tracks: offlineTracks },
-      { title: "Local Files", subtitle: "Your imported audio", artwork: offlineTracks[1]?.artwork || waveboxSeeds[2].artwork, tracks: offlineTracks },
-      { title: "Recently Played", subtitle: "Jump back into your queue", artwork: recentlyPlayed[0]?.artwork || waveboxSeeds[3].artwork, tracks: recentlyPlayed.length ? recentlyPlayed : waveboxSeeds },
-      { title: "Starter Mix", subtitle: "The default Josh-Fy collection", artwork: waveboxSeeds[0].artwork, tracks: waveboxSeeds }
+      { title: "Liked Songs", subtitle: `${likedTrackIds.length} saved favorites`, artwork: tracks[0].artwork, tracks: tracks.filter((track) => likedTrackIds.includes(track.id)) },
+      { title: "Downloads", subtitle: `${offlineTracks.length} saved inside the app`, artwork: offlineTracks[0]?.artwork || tracks[1].artwork, tracks: offlineTracks },
+      { title: "Local Files", subtitle: "Your imported audio", artwork: offlineTracks[1]?.artwork || tracks[2].artwork, tracks: offlineTracks },
+      { title: "Recently Played", subtitle: "Jump back into your queue", artwork: recentlyPlayed[0]?.artwork || tracks[3].artwork, tracks: recentlyPlayed.length ? recentlyPlayed : tracks },
+      { title: "Starter Mix", subtitle: "Mainstream-inspired demo picks", artwork: demoPlaylists[0].image, tracks: demoPlaylists[0].tracks.map((track) => normalizeTrack(track, "demo")) }
     ],
-    [offlineTracks, recentlyPlayed]
+    [likedTrackIds, offlineTracks, recentlyPlayed]
   );
 
-  const rowTracks = offlineTracks.length ? offlineTracks : recentlyPlayed.length ? recentlyPlayed : waveboxSeeds;
+  const rowTracks = offlineTracks.length ? offlineTracks : recentlyPlayed.length ? recentlyPlayed : tracks;
 
   return (
     <div className="space-y-5">
@@ -75,8 +78,10 @@ export default function Library() {
             title={card.title}
             subtitle={card.subtitle}
             artwork={card.artwork}
-            tracks={card.tracks.length ? card.tracks : waveboxSeeds}
+            tracks={card.tracks.length ? card.tracks : tracks}
+            badge="Library"
             accent={index % 2 === 0 ? "from-emerald-400/20 to-lime-300/10" : "from-cyan-400/20 to-blue-400/10"}
+            onOpen={() => window.alert("Collection view coming soon.")}
           />
         ))}
       </div>

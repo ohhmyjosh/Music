@@ -8,6 +8,8 @@ export function rankTracks(query, tracks = []) {
         track.artist,
         track.album,
         track.genre,
+        track.mood,
+        track.source,
         ...(track.tags || [])
       ]
         .join(" ")
@@ -15,9 +17,9 @@ export function rankTracks(query, tracks = []) {
 
       const score = normalized
         ? haystack.includes(normalized)
-          ? 100 + normalized.length
-          : (track.tags || []).filter((tag) => tag.includes(normalized)).length * 15
-        : 1;
+          ? 120 + normalized.length
+          : (track.tags || []).filter((tag) => tag.toLowerCase().includes(normalized)).length * 20
+        : (track.popularity || 1);
 
       return { track, score };
     })
@@ -30,12 +32,14 @@ export function getRecommendationScore(seedTrack, candidate) {
 
   if (seedTrack.genre === candidate.genre) score += 30;
   if (seedTrack.artist === candidate.artist) score += 10;
+  if (seedTrack.mood === candidate.mood) score += 16;
+  if (seedTrack.album === candidate.album) score += 14;
 
   for (const tag of seedTrack.tags || []) {
     if ((candidate.tags || []).includes(tag)) score += 12;
   }
 
-  if (seedTrack.mood === candidate.mood) score += 16;
+  score += Math.floor((candidate.popularity || 0) / 10);
 
   return score;
 }

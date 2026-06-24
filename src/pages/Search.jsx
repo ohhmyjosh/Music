@@ -1,39 +1,69 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import SearchBar from "../components/search/SearchBar";
 import SearchResults from "../components/search/SearchResults";
 import GenreChip from "../components/music/GenreChip";
-import { searchAudiusTracks } from "../api/audius";
-import { fetchJamendoTrending } from "../api/jamendo";
+import { demoTracks } from "../data/demoTracks";
+import { demoAlbums } from "../data/demoAlbums";
+import { demoPlaylists } from "../data/demoPlaylists";
+import { demoGenres } from "../data/demoGenres";
+import { normalizeTrack } from "../utils/normalizeTrack";
 import { rankTracks } from "../utils/ranking";
 
 const filters = ["Songs", "Artists", "Albums", "Playlists", "Genres", "Downloadable"];
+const tracks = demoTracks.map((track) => normalizeTrack(track, "demo"));
+
+function scoreEntity(query, values) {
+  const normalized = query.trim().toLowerCase();
+  const haystack = values.join(" ").toLowerCase();
+  if (!normalized) return 1;
+  return haystack.includes(normalized) ? 100 + normalized.length : 0;
+}
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("Songs");
 
-  const { data: audiusResults = [] } = useQuery({
-    queryKey: ["search-audius", query],
-    queryFn: () => searchAudiusTracks(query),
-    staleTime: 1000 * 60 * 3
-  });
-
-  const { data: jamendoFallback = [] } = useQuery({
-    queryKey: ["search-fallback-jamendo"],
-    queryFn: fetchJamendoTrending
-  });
-
   const results = useMemo(() => {
-    let merged = query.trim() ? audiusResults : jamendoFallback;
-    merged = rankTracks(query, merged);
+    const rankedSongs = rankTracks(query, tracks);
+    const filteredSongs = activeFilter === "Downloadable"
+      ? rankedSongs.filter((track) => track.isDownloadable)
+      : rankedSongs;
 
-    if (activeFilter === "Downloadable") {
-      return merged.filter((track) => Boolean(track.downloadUrl || track.localOnly));
-    }
+    const albums = demoAlbums
+      .map((album) => ({ item: album, score: scoreEntity(query, [album.title, album.artist, album.genre, album.mood, ...(album.tags || [])]) }))
+      .filter(({ score }) => !query || score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(({ item }) => item);
 
-    return merged;
-  }, [activeFilter, audiusResults, jamendoFallback, query]);
+    const playlists = demoPlaylists
+      .map((playlist) => ({ item: playlist, score: scoreEntity(query, [playlist.title, playlist.subtitle, playlist.genre, playlist.mood, ...(playlist.tags || [])]) }))
+      .filter(({ score }) => !query || score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(({ item }) => item);
+
+    const genres = demoGenres
+      .map((genre) => ({ item: genre, score: scoreEntity(query, [genre.label, genre.description, ...(genre.tags || [])]) }))
+      .filter(({ score }) => !query || score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(({ item }) => item);
+
+    const topCandidates = [
+      filteredSongs[0] ? { kind: "track", item: filteredSongs[0], score: filteredSongs[0].popularity || 50 } : null,
+      albums[0] ? { kind: "album", item: albums[0], score: 80 } : null,
+      playlists[0] ? { kind: "playlist", item: playlists[0], score: 78 } : null,
+      genres[0] ? { kind: "genre", item: genres[0], score: 60 } : null
+    ].filter(Boolean);
+
+    topCandidates.sort((a, b) => b.score - a.score);
+
+    return {
+      topResult: topCandidates[0] || null,
+      songs: filteredSongs,
+      albums,
+      playlists,
+      genres
+    };
+  }, [activeFilter, query]);
 
   return (
     <div className="space-y-5">
@@ -47,7 +77,7 @@ export default function SearchPage() {
         </div>
       </div>
 
-      <SearchResults tracks={results} />
+      <SearchResults {...results} />
     </div>
   );
 }

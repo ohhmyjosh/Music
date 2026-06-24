@@ -1,17 +1,11 @@
-import { fetchAudiusTrending } from "./audius";
-import { fetchJamendoTrending } from "./jamendo";
+import { normalizeTrack } from "../utils/normalizeTrack";
+import { demoTracks } from "../data/demoTracks";
 import { getRecommendationScore } from "../utils/ranking";
 
-export async function fetchRecommendations(seedTrack) {
-  const [jamendo, audius] = await Promise.allSettled([
-    fetchJamendoTrending(),
-    fetchAudiusTrending()
-  ]);
+const catalog = demoTracks.map((track) => normalizeTrack(track, "demo"));
 
-  const candidates = [
-    ...(jamendo.status === "fulfilled" ? jamendo.value : []),
-    ...(audius.status === "fulfilled" ? audius.value : [])
-  ].filter((track) => track.id !== seedTrack?.id);
+export async function fetchRecommendations(seedTrack) {
+  const candidates = catalog.filter((track) => track.id !== seedTrack?.id);
 
   if (!seedTrack) {
     return candidates.slice(0, 6);

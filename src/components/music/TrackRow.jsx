@@ -21,11 +21,10 @@ export default function TrackRow({ track, queue = [], showSource = true }) {
       </button>
       <button
         className="rounded-full p-2 text-slate-400 transition hover:bg-white/5 hover:text-white"
-        onClick={() => window.alert("More actions coming soon.")}
+        onClick={() => window.alert("Track actions coming soon.")}
       >
         <MoreVertical size={16} />
       </button>
     </div>
   );
 }
-

@@ -1,10 +1,10 @@
 const fallbackArtwork =
-  "https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=800&q=80";
+  "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%231db954'/%3E%3Cstop offset='55%25' stop-color='%23111827'/%3E%3Cstop offset='100%25' stop-color='%230f172a'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='600' height='600' rx='48' fill='url(%23g)'/%3E%3Ctext x='60' y='330' fill='white' font-family='Arial,sans-serif' font-size='96' font-weight='700'%3EJF%3C/text%3E%3C/svg%3E";
 
 export function normalizeTrack(track, source = "custom") {
   return {
     id: track.id ?? `${source}-${track.title}-${track.artist}`,
-    source,
+    source: track.source || source,
     title: track.title ?? "Unknown title",
     artist: track.artist ?? track.artist_name ?? "Unknown artist",
     album: track.album ?? track.release_title ?? "Single",
@@ -14,86 +14,27 @@ export function normalizeTrack(track, source = "custom") {
       track.image ||
       track.cover ||
       fallbackArtwork,
+    image:
+      track.image ||
+      track.artwork ||
+      track.artwork_url ||
+      track.cover ||
+      fallbackArtwork,
     audioUrl: track.audioUrl || track.stream_url || track.url || "",
-    downloadUrl: track.downloadUrl || track.download_url || "",
+    downloadUrl:
+      track.downloadUrl ||
+      track.download_url ||
+      (track.isDownloadable ? track.audioUrl || track.stream_url || track.url || "" : ""),
     duration: track.duration ?? 0,
     genre: track.genre ?? track.tags?.[0] ?? "Electronic",
     mood: track.mood ?? "Focused",
     description: track.description ?? "",
+    releaseDate: track.releaseDate ?? "",
+    popularity: track.popularity ?? 0,
     isOffline: Boolean(track.isOffline),
     localOnly: Boolean(track.localOnly),
+    isDownloadable: Boolean(track.isDownloadable || track.downloadUrl || track.download_url),
     lyrics: track.lyrics ?? "",
     tags: track.tags ?? []
   };
 }
-
-export const waveboxSeeds = [
-  normalizeTrack(
-    {
-      id: "seed-1",
-      title: "Night Transit",
-      artist: "Wave Theory",
-      album: "After Hours",
-      artwork:
-        "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=900&q=80",
-      audioUrl: "https://samplelib.com/lib/preview/mp3/sample-3s.mp3",
-      downloadUrl: "https://samplelib.com/lib/preview/mp3/sample-3s.mp3",
-      duration: 183,
-      genre: "Synthwave",
-      mood: "Late Night",
-      tags: ["synth", "night", "retro"]
-    },
-    "seed"
-  ),
-  normalizeTrack(
-    {
-      id: "seed-2",
-      title: "Coastal Bloom",
-      artist: "Harbor Echo",
-      album: "Blue Morning",
-      artwork:
-        "https://images.unsplash.com/photo-1501612780327-45045538702b?auto=format&fit=crop&w=900&q=80",
-      audioUrl: "https://samplelib.com/lib/preview/mp3/sample-6s.mp3",
-      downloadUrl: "https://samplelib.com/lib/preview/mp3/sample-6s.mp3",
-      duration: 214,
-      genre: "Indie Pop",
-      mood: "Uplifting",
-      tags: ["indie", "coast", "sunrise"]
-    },
-    "seed"
-  ),
-  normalizeTrack(
-    {
-      id: "seed-3",
-      title: "Signals in Rain",
-      artist: "Velvet Static",
-      album: "Streetlights",
-      artwork:
-        "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&w=900&q=80",
-      audioUrl: "https://samplelib.com/lib/preview/mp3/sample-9s.mp3",
-      downloadUrl: "https://samplelib.com/lib/preview/mp3/sample-9s.mp3",
-      duration: 201,
-      genre: "Lo-fi",
-      mood: "Rainy",
-      tags: ["lofi", "rain", "focus"]
-    },
-    "seed"
-  ),
-  normalizeTrack(
-    {
-      id: "seed-4",
-      title: "Open Skyline",
-      artist: "Northbound",
-      album: "Altitude",
-      artwork:
-        "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=900&q=80",
-      audioUrl: "https://samplelib.com/lib/preview/mp3/sample-12s.mp3",
-      downloadUrl: "https://samplelib.com/lib/preview/mp3/sample-12s.mp3",
-      duration: 236,
-      genre: "Chillhop",
-      mood: "Expansive",
-      tags: ["travel", "chill", "instrumental"]
-    },
-    "seed"
-  )
-];

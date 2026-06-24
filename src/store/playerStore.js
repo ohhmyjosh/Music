@@ -1,9 +1,12 @@
 import { create } from "zustand";
-import { waveboxSeeds } from "../utils/normalizeTrack";
+import { normalizeTrack } from "../utils/normalizeTrack";
+import { demoTracks } from "../data/demoTracks";
+
+const demoQueue = demoTracks.map((track) => normalizeTrack(track, "demo"));
 
 export const usePlayerStore = create((set, get) => ({
-  queue: waveboxSeeds,
-  currentTrack: waveboxSeeds[0],
+  queue: demoQueue,
+  currentTrack: demoQueue[0],
   isPlaying: false,
   volume: 0.85,
   currentTime: 0,

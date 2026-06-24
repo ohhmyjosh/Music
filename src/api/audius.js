@@ -1,5 +1,7 @@
-import { normalizeTrack, waveboxSeeds } from "../utils/normalizeTrack";
+import { normalizeTrack } from "../utils/normalizeTrack";
+import { demoTracks } from "../data/demoTracks";
 
+const demoCatalog = demoTracks.map((track) => normalizeTrack(track, "demo"));
 const DISCOVERY_NODES = [
   "https://discoveryprovider.audius.co/v1/tracks/trending?limit=10"
 ];
@@ -30,13 +32,13 @@ export async function fetchAudiusTrending() {
       )
     );
   } catch {
-    return waveboxSeeds;
+    return demoCatalog.filter((track) => ["Rap", "Hip-Hop", "Workout", "Lo-fi"].includes(track.genre)).slice(0, 8);
   }
 }
 
 export async function searchAudiusTracks(query) {
   if (!query.trim()) {
-    return waveboxSeeds;
+    return demoCatalog;
   }
 
   try {
@@ -66,8 +68,11 @@ export async function searchAudiusTracks(query) {
       )
     );
   } catch {
-    return waveboxSeeds.filter((track) =>
-      [track.title, track.artist, track.genre].join(" ").toLowerCase().includes(query.toLowerCase())
+    return demoCatalog.filter((track) =>
+      [track.title, track.artist, track.genre, track.mood, ...(track.tags || [])]
+        .join(" ")
+        .toLowerCase()
+        .includes(query.toLowerCase())
     );
   }
 }
