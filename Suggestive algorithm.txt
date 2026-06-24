@@ -1,0 +1,23 @@
+step 1.
+If a song title is provided, search for the song in a music database using the title to obtain relevant details such as artist, album, and genre.
+If a genre is provided, skip this step.
+Retrieve song recommendations:
+
+step2.
+If a genre is provided, search for songs in the music database that match the given genre.
+If a song title is provided, use the genre obtained from Step 1 (if available) to search for songs in the music database that share the same genre as the given song.
+If both a song title and genre are provided, combine the search criteria to find songs that match both the title and genre.
+Filter recommendations:
+
+step3. 
+If a song title is provided, remove the original song from the list of recommendations to avoid suggesting the same song.
+Apply additional filters if desired, such as popularity, release date, or user ratings.
+Rank recommendations:
+
+step3.
+If desired, rank the recommendations based on a specific criteria, such as popularity, user ratings, or similarity to the original song.
+If no specific ranking is required, present the recommendations in the order obtained from Step 3.
+Return recommendations:
+
+step4.
+Present the list of recommended songs to the user.
