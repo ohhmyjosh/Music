@@ -11,6 +11,8 @@ import { fetchAudiusTrending } from "../api/audius";
 import { fetchRecommendations } from "../api/recommendations";
 import { rankTracks } from "../utils/ranking";
 import { usePlayerStore } from "../store/playerStore";
+import brandLogo from "../assets/branding/logo.png";
+import heroBanner from "../assets/branding/banner.png";
 
 const quickStats = [
   { label: "Curated feel", value: "Spotify-inspired", icon: Sparkles },
@@ -46,12 +48,19 @@ export default function Home() {
 
   return (
     <div className="space-y-8">
-      <section className="hero-grid glass-panel overflow-hidden rounded-[36px] p-6 shadow-glow lg:p-8">
-        <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
-          <div className="space-y-6">
+      <section className="hero-grid glass-panel overflow-hidden rounded-[36px] p-4 shadow-glow sm:p-6 lg:p-8">
+        <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr] xl:items-stretch">
+          <div className="space-y-6 rounded-[30px] border border-white/10 bg-black/15 p-5 sm:p-6 lg:p-7">
+            <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-3 py-2">
+              <img src={brandLogo} alt="Josh-Fy logo" className="h-10 w-10 rounded-xl object-contain bg-black/20 p-1" />
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.35em] text-accent-300">Josh-Fy</p>
+                <p className="text-sm text-slate-300">Spotify-inspired discovery UI</p>
+              </div>
+            </div>
+
             <div>
-              <p className="text-xs uppercase tracking-[0.35em] text-accent-300">Josh-Fy</p>
-              <h1 className="mt-4 max-w-3xl font-display text-4xl font-semibold leading-tight text-white lg:text-6xl">
+              <h1 className="max-w-3xl font-display text-4xl font-semibold leading-tight text-white lg:text-6xl">
                 Your free music space.
               </h1>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300 lg:text-base">
@@ -79,19 +88,29 @@ export default function Home() {
           </div>
 
           <div className="grid gap-4">
-            <div className="rounded-[28px] border border-white/10 bg-gradient-to-br from-accent-500/16 via-white/[0.04] to-amber-400/10 p-6">
-              <p className="text-sm text-slate-300">Now playing vibe</p>
-              <h2 className="mt-3 font-display text-2xl font-semibold text-white">
-                {currentTrack?.title || "Pick a track to set the mood"}
-              </h2>
-              <p className="mt-2 text-sm text-slate-400">{currentTrack?.artist || "Josh-Fy launches with discovery-first UI patterns."}</p>
-              <div className="mt-6 flex items-center gap-2 text-sm text-accent-200">
-                <TrendingUp size={16} />
-                <span>Responsive, portfolio-ready, and Vercel-friendly.</span>
+            <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-slate-900/70 min-h-[260px] sm:min-h-[320px] xl:min-h-[420px]">
+              <img
+                src={heroBanner}
+                alt="Josh-Fy banner"
+                className="absolute inset-0 h-full w-full object-cover object-center"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
+                <p className="text-sm text-slate-300">Now playing vibe</p>
+                <h2 className="mt-3 max-w-lg font-display text-2xl font-semibold text-white sm:text-3xl">
+                  {currentTrack?.title || "Pick a track to set the mood"}
+                </h2>
+                <p className="mt-2 text-sm text-slate-300">
+                  {currentTrack?.artist || "Josh-Fy launches with discovery-first UI patterns."}
+                </p>
+                <div className="mt-5 flex items-center gap-2 text-sm text-accent-200">
+                  <TrendingUp size={16} />
+                  <span>Responsive, portfolio-ready, and Vercel-friendly.</span>
+                </div>
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-3">
               {quickStats.map(({ label, value, icon: Icon }) => (
                 <div key={label} className="rounded-[24px] border border-white/10 bg-black/20 p-4">
                   <Icon size={18} className="text-accent-300" />
