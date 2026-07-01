@@ -2,6 +2,7 @@ import { Download, Heart, ListMusic, Pause, Play, SkipBack, SkipForward, Volume2
 import { useLibraryStore } from "../../store/libraryStore";
 import { usePlayerStore } from "../../store/playerStore";
 import TrackRow from "../music/TrackRow";
+import WaveformVisualizer from "./WaveformVisualizer";
 import clsx from "clsx";
 
 function formatTime(seconds) {
@@ -56,6 +57,10 @@ export default function FullPlayer({ lyrics, recommendations = [] }) {
             <p className="text-xs uppercase tracking-[0.3em] text-accent-300">Now playing</p>
             <h1 className="mt-3 font-display text-3xl font-semibold text-white sm:text-4xl">{currentTrack.title}</h1>
             <p className="mt-2 text-base text-slate-300">{currentTrack.artist}</p>
+          </div>
+
+          <div className="h-28 overflow-hidden rounded-[24px] border border-white/10 bg-black/25 sm:h-32">
+            <WaveformVisualizer variant="inline" />
           </div>
 
           <div className="space-y-2">

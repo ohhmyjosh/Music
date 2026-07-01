@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Pause, Play, SkipForward } from "lucide-react";
 import { Link } from "react-router-dom";
 import { usePlayerStore } from "../../store/playerStore";
+import { attachAnalyser, resumeAnalyser } from "../../audio/analyser";
 
 export default function MiniPlayer() {
   const audioRef = useRef(null);
@@ -27,6 +28,10 @@ export default function MiniPlayer() {
     }
 
     if (isPlaying) {
+      // Route audio through the shared analyser and unlock the AudioContext on
+      // this user-driven play so the waveform can read live data.
+      attachAnalyser(audio);
+      resumeAnalyser();
       audio.play().catch(() => {});
     } else {
       audio.pause();

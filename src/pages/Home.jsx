@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import SearchBar from "../components/search/SearchBar";
 import SectionShelf from "../components/music/SectionShelf";
 import TrackCard from "../components/music/TrackCard";
@@ -12,6 +13,7 @@ import { demoPlaylists } from "../data/demoPlaylists";
 import { demoGenres } from "../data/demoGenres";
 import { normalizeTrack } from "../utils/normalizeTrack";
 import { rankTracks } from "../utils/ranking";
+import { fetchAudiusTrending } from "../api/audius";
 import heroBanner from "../assets/branding/banner.png";
 
 const chips = ["All", "Relax", "Workout", "Focus", "Indie", "R&B", "Hindi", "Downloadable"];
@@ -39,6 +41,12 @@ export default function Home() {
   const [activeChip, setActiveChip] = useState("All");
   const currentTrack = usePlayerStore((state) => state.currentTrack);
   const recentlyPlayed = usePlayerStore((state) => state.recentlyPlayed);
+
+  // Real, streamable music from the free Audius network.
+  const { data: trending = [] } = useQuery({
+    queryKey: ["audius-trending"],
+    queryFn: () => fetchAudiusTrending(15)
+  });
 
   const filteredTracks = useMemo(() => {
     let next = rankTracks(search, catalog);
@@ -108,6 +116,16 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {trending.length ? (
+        <SectionShelf title="Trending now">
+          <div className="feed-scroll flex gap-3 overflow-x-auto pb-1">
+            {trending.map((track) => (
+              <TrackCard key={track.id} track={track} queue={trending} compact />
+            ))}
+          </div>
+        </SectionShelf>
+      ) : null}
 
       <SectionShelf title="Listen again">
         <div className="feed-scroll flex gap-3 overflow-x-auto pb-1">

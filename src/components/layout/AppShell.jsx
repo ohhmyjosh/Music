@@ -4,6 +4,7 @@ import Sidebar from "./Sidebar";
 import MobileHeader from "./MobileHeader";
 import BottomNav from "./BottomNav";
 import MiniPlayer from "./MiniPlayer";
+import WaveformVisualizer from "../player/WaveformVisualizer";
 import { useLibraryStore } from "../../store/libraryStore";
 
 export default function AppShell() {
@@ -24,6 +25,7 @@ export default function AppShell() {
           </main>
         </div>
       </div>
+      <WaveformVisualizer />
       <MiniPlayer />
       <BottomNav />
     </div>

@@ -10,4 +10,6 @@ yarn-error.log*
 pnpm-debug.log*
 vite-dev.out.log
 vite-dev.err.log
+*.log
+.vercel
 .DS_Store

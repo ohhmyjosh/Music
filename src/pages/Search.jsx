@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import SearchBar from "../components/search/SearchBar";
 import SearchResults from "../components/search/SearchResults";
 import GenreChip from "../components/music/GenreChip";
@@ -8,6 +9,7 @@ import { demoPlaylists } from "../data/demoPlaylists";
 import { demoGenres } from "../data/demoGenres";
 import { normalizeTrack } from "../utils/normalizeTrack";
 import { rankTracks } from "../utils/ranking";
+import { searchAudiusTracks } from "../api/audius";
 
 const filters = ["Songs", "Artists", "Albums", "Playlists", "Genres", "Downloadable"];
 const tracks = demoTracks.map((track) => normalizeTrack(track, "demo"));
@@ -21,13 +23,27 @@ function scoreEntity(query, values) {
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("Songs");
 
+  // Debounce so we don't hit the Audius API on every keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQuery(query), 350);
+    return () => clearTimeout(id);
+  }, [query]);
+
+  // Real, playable songs from Audius (falls back to demo inside the adapter).
+  const { data: liveSongs = [], isFetching } = useQuery({
+    queryKey: ["audius-search", debouncedQuery],
+    queryFn: () => searchAudiusTracks(debouncedQuery)
+  });
+
   const results = useMemo(() => {
-    const rankedSongs = rankTracks(query, tracks);
+    // Prefer live Audius results; while they load, show ranked demo tracks.
+    const baseSongs = liveSongs.length ? liveSongs : rankTracks(query, tracks);
     const filteredSongs = activeFilter === "Downloadable"
-      ? rankedSongs.filter((track) => track.isDownloadable)
-      : rankedSongs;
+      ? baseSongs.filter((track) => track.isDownloadable)
+      : baseSongs;
 
     const albums = demoAlbums
       .map((album) => ({ item: album, score: scoreEntity(query, [album.title, album.artist, album.genre, album.mood, ...(album.tags || [])]) }))
@@ -63,7 +79,7 @@ export default function SearchPage() {
       playlists,
       genres
     };
-  }, [activeFilter, query]);
+  }, [activeFilter, query, liveSongs]);
 
   return (
     <div className="space-y-5">
@@ -76,6 +92,10 @@ export default function SearchPage() {
           ))}
         </div>
       </div>
+
+      {isFetching && query ? (
+        <p className="text-xs text-accent-300">Searching live music…</p>
+      ) : null}
 
       <SearchResults {...results} />
     </div>
