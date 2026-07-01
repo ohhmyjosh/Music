@@ -1,4 +1,4 @@
-export function createCover(label, palette = ["#1db954", "#0f172a", "#111827"]) {
+export function createCover(label, palette = ["#7c3aed", "#0a0a0f", "#1a1a23"]) {
   const [primary, secondary, accent] = palette;
   const initials = label
     .split(" ")

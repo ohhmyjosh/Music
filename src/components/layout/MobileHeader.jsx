@@ -10,7 +10,7 @@ export default function MobileHeader() {
           <img src={brandLogo} alt="Josh-Fy logo" className="h-10 w-10 rounded-xl object-contain bg-white/5 p-1" />
           <div>
             <p className="font-display text-base font-semibold text-white">Josh-Fy</p>
-            <p className="text-xs text-slate-400">Your free music space</p>
+            <p className="text-xs text-slate-400">Your music space</p>
           </div>
         </div>
 

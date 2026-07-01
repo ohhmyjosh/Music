@@ -53,7 +53,7 @@ export const demoTracks = [
     album: "R&B Nights",
     genre: "R&B",
     mood: "Night Drive",
-    palette: ["#1db954", "#101828", "#2d1b69"],
+    palette: ["#ec4899", "#101828", "#2d1b69"],
     duration: 214,
     releaseDate: "2024-09-12",
     popularity: 92,

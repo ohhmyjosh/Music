@@ -103,11 +103,11 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
       const maxBarHeight = h * 0.92;
 
       const gradient = ctx.createLinearGradient(0, h, 0, 0);
-      gradient.addColorStop(0, "rgba(34, 179, 95, 0.05)");
-      gradient.addColorStop(0.5, "rgba(74, 206, 125, 0.55)");
-      gradient.addColorStop(1, "rgba(127, 227, 164, 0.95)");
+      gradient.addColorStop(0, "rgba(124, 58, 237, 0.08)");
+      gradient.addColorStop(0.5, "rgba(236, 72, 153, 0.6)");
+      gradient.addColorStop(1, "rgba(6, 182, 212, 0.95)");
       ctx.fillStyle = gradient;
-      ctx.shadowColor = "rgba(74, 206, 125, 0.55)";
+      ctx.shadowColor = "rgba(139, 92, 246, 0.55)";
       ctx.shadowBlur = 18;
 
       for (let b = 0; b < totalBars; b += 1) {
