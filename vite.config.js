@@ -8,17 +8,44 @@ export default defineConfig({
     VitePWA({
       // Auto-update the installed app whenever you ship a new build.
       registerType: "autoUpdate",
-      includeAssets: ["favicon.svg", "apple-touch-icon.png"],
+      includeAssets: ["favicon.png", "apple-touch-icon.png"],
       manifest: {
         name: "Josh-Fy",
         short_name: "Josh-Fy",
-        description: "Your free music space.",
-        theme_color: "#07110d",
-        background_color: "#07110d",
+        description: "Your music space. Feel every beat.",
+        theme_color: "#0a0a0f",
+        background_color: "#0a0a0f",
         display: "standalone",
+        // Prefer the most immersive shell the platform allows, then degrade.
+        display_override: ["window-controls-overlay", "standalone"],
+        orientation: "portrait-primary",
         start_url: "/",
+        scope: "/",
+        lang: "en",
+        categories: ["music", "entertainment"],
+        // Long-press / jump-list shortcuts on Android, Windows and desktop PWAs.
+        shortcuts: [
+          {
+            name: "Search",
+            short_name: "Search",
+            url: "/search",
+            icons: [{ src: "pwa-192.png", sizes: "192x192", type: "image/png" }]
+          },
+          {
+            name: "Your Library",
+            short_name: "Library",
+            url: "/library",
+            icons: [{ src: "pwa-192.png", sizes: "192x192", type: "image/png" }]
+          }
+        ],
         icons: [
           { src: "pwa-192.png", sizes: "192x192", type: "image/png" },
+          {
+            src: "pwa-192.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "any"
+          },
           { src: "pwa-512.png", sizes: "512x512", type: "image/png" },
           {
             src: "pwa-maskable-512.png",

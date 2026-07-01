@@ -2,15 +2,25 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#07110d" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0a0a0f" />
     <meta
       name="description"
-      content="Josh-Fy - Your free music space. A Spotify-inspired React music discovery web app."
+      content="Josh-Fy - Your music space. Feel every beat. A music discovery web app."
     />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- iOS installed-PWA behaviour: run fullscreen/standalone so background audio
+         and the lock-screen Now Playing controls (MediaSession) work like a native
+         app instead of a Safari tab. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Josh-Fy" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <title>Josh-Fy | Your free music space.</title>
+    <title>Josh-Fy | Your music space.</title>
   </head>
   <body class="bg-slate-950 text-slate-100">
     <div id="root"></div>

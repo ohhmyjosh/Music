@@ -3,6 +3,13 @@ import { Pause, Play, SkipForward } from "lucide-react";
 import { Link } from "react-router-dom";
 import { usePlayerStore } from "../../store/playerStore";
 import { attachAnalyser, resumeAnalyser } from "../../audio/analyser";
+import { startOverlayBridge } from "../../audio/overlayBridge";
+import {
+  setMediaSessionMetadata,
+  setMediaSessionPlaybackState,
+  setMediaSessionPosition,
+  setupMediaSessionHandlers
+} from "../../audio/mediaSession";
 
 export default function MiniPlayer() {
   const audioRef = useRef(null);
@@ -12,8 +19,11 @@ export default function MiniPlayer() {
     volume,
     currentTime,
     duration,
+    play,
+    pause,
     togglePlay,
     nextTrack,
+    previousTrack,
     setCurrentTime,
     setDuration
   } = usePlayerStore();
@@ -44,6 +54,45 @@ export default function MiniPlayer() {
     }
   }, [volume]);
 
+  // Begin streaming this app's own audio data to the desktop overlay (if it's
+  // running), so the overlay visualizes only Josh-Fy.
+  useEffect(() => {
+    startOverlayBridge();
+  }, []);
+
+  // Register OS media-control handlers once. These drive hardware media keys and
+  // the lock-screen / SMTC / Control Center buttons on every supported platform.
+  useEffect(() => {
+    const seekTo = (time) => {
+      const audio = audioRef.current;
+      if (audio && Number.isFinite(time)) {
+        audio.currentTime = Math.max(0, time);
+        setCurrentTime(audio.currentTime);
+      }
+    };
+    setupMediaSessionHandlers({
+      play,
+      pause,
+      next: nextTrack,
+      previous: previousTrack,
+      seek: seekTo,
+      fastSeek: seekTo,
+      seekBy: (delta) => {
+        const audio = audioRef.current;
+        if (audio) seekTo(audio.currentTime + delta);
+      }
+    });
+  }, [play, pause, nextTrack, previousTrack, setCurrentTime]);
+
+  // Mirror the current track and play/pause state onto the OS media surface.
+  useEffect(() => {
+    setMediaSessionMetadata(currentTrack);
+  }, [currentTrack]);
+
+  useEffect(() => {
+    setMediaSessionPlaybackState(isPlaying);
+  }, [isPlaying]);
+
   const progress = useMemo(() => {
     const total = duration || currentTrack?.duration || 0;
     return total ? (currentTime / total) * 100 : 0;
@@ -55,8 +104,20 @@ export default function MiniPlayer() {
     <>
       <audio
         ref={audioRef}
-        onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || currentTrack.duration || 0)}
-        onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+        onLoadedMetadata={(event) => {
+          const dur = event.currentTarget.duration || currentTrack.duration || 0;
+          setDuration(dur);
+          setMediaSessionPosition({ duration: dur, position: 0 });
+        }}
+        onTimeUpdate={(event) => {
+          const audio = event.currentTarget;
+          setCurrentTime(audio.currentTime);
+          setMediaSessionPosition({
+            duration: audio.duration || currentTrack.duration || 0,
+            position: audio.currentTime,
+            playbackRate: audio.playbackRate
+          });
+        }}
         onEnded={nextTrack}
       />
 
