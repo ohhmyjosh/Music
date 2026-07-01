@@ -1,0 +1,30 @@
+{
+  "name": "joshfy-overlay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Josh-Fy always-on music visualizer overlay (transparent, reacts to system audio).",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^31.7.6",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.joshfy.overlay",
+    "productName": "Josh-Fy Overlay",
+    "directories": { "output": "release" },
+    "files": ["main.js", "overlay.html", "overlay.js", "assets/**/*"],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true
+    }
+  }
+}

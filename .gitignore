@@ -12,4 +12,5 @@ vite-dev.out.log
 vite-dev.err.log
 *.log
 .vercel
+desktop-overlay/release/
 .DS_Store
