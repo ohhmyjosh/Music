@@ -1,37 +1,49 @@
-// Josh-Fy overlay renderer: capture the PC's system audio (loopback) and draw
-// the same mirrored, glowing wave that the web app uses — rising from the
-// bottom of the screen, beating with whatever music is playing anywhere.
+// Josh-Fy overlay renderer.
+//
+// It draws the same mirrored, glowing wave the web app uses, but it is driven
+// ENTIRELY by audio frames pushed from the Josh-Fy web app (via the main
+// process). It does not listen to system audio, so it reacts to Josh-Fy alone
+// and never to anything else playing on the PC.
 
 const canvas = document.getElementById("wave");
 const ctx = canvas.getContext("2d");
+const nowPlayingEl = document.getElementById("nowplaying");
 
 const BARS_PER_SIDE = 48;
 const heights = new Float32Array(BARS_PER_SIDE);
-let analyser = null;
-let freqData = null;
-let level = 0; // eases up when real sound is present
+let level = 0; // eases up when Josh-Fy is playing
 
-async function initAudio() {
-  try {
-    // main.js answers this with loopback (system output) audio.
-    const stream = await navigator.mediaDevices.getDisplayMedia({
-      audio: true,
-      video: true
-    });
-    // We only want the sound — drop the screen video to save resources.
-    stream.getVideoTracks().forEach((t) => t.stop());
+let dockTop = false; // strip docked to the top edge instead of the bottom
+let showNowPlaying = true;
 
-    const audioCtx = new AudioContext();
-    const source = audioCtx.createMediaStreamSource(stream);
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 256;
-    analyser.smoothingTimeConstant = 0.82;
-    source.connect(analyser);
-    freqData = new Uint8Array(analyser.frequencyBinCount);
-  } catch (err) {
-    // If capture is blocked we simply fall back to a gentle idle animation.
-    console.error("System audio capture failed:", err);
-  }
+// Latest audio frame from the web app, plus when it arrived (for staleness).
+let frame = { playing: false, real: false, bins: [] };
+let frameAt = 0;
+
+// ---- Live wiring from the main process ------------------------------------
+if (window.joshfy) {
+  window.joshfy.onAudioData((data) => {
+    frame = data || { playing: false, real: false, bins: [] };
+    frameAt = performance.now();
+  });
+
+  window.joshfy.onConfig((cfg) => {
+    dockTop = cfg.position === "top";
+    showNowPlaying = cfg.showNowPlaying !== false;
+    document.body.classList.toggle("top", dockTop);
+    if (!showNowPlaying) nowPlayingEl.classList.remove("show");
+  });
+
+  window.joshfy.onNowPlaying((info) => {
+    const playing = info && info.status === "Playing" && info.title;
+    if (playing && showNowPlaying) {
+      const artist = info.artist ? ` — ${info.artist}` : "";
+      nowPlayingEl.textContent = `${info.title}${artist}`;
+      nowPlayingEl.classList.add("show");
+    } else {
+      nowPlayingEl.classList.remove("show");
+    }
+  });
 }
 
 function resize() {
@@ -51,29 +63,45 @@ function draw(now) {
   const h = window.innerHeight;
   ctx.clearRect(0, 0, w, h);
 
-  let energy = 0;
-  if (analyser) {
-    analyser.getByteFrequencyData(freqData);
-    for (let i = 0; i < freqData.length; i += 1) energy += freqData[i];
+  // When docked to the top edge, flip vertically so the bars hang down from the
+  // top instead of rising from the bottom. The rest of the draw math is shared.
+  if (dockTop) {
+    ctx.translate(0, h);
+    ctx.scale(1, -1);
   }
-  const hasSound = energy > 200;
 
-  // Fade the whole strip in when there's sound, out when it's silent.
-  const target = hasSound ? 1 : 0;
-  level += (target - level) * 0.05;
+  // Consider the stream "live" only if a frame arrived recently; otherwise the
+  // web app was closed and we fade out.
+  const fresh = now - frameAt < 1200;
+  const playing = fresh && frame.playing;
+  const bins = frame.bins || [];
+  const hasReal = playing && frame.real && bins.length > 0;
+
+  // Ease the whole strip in when Josh-Fy is playing, out otherwise.
+  const target = playing ? 1 : 0;
+  level += (target - level) * 0.06;
 
   const t = now / 1000;
   const beat = Math.pow(Math.max(0, Math.sin(t * Math.PI * 2)), 6);
 
   for (let i = 0; i < BARS_PER_SIDE; i += 1) {
     let value;
-    if (hasSound) {
-      const bin = Math.floor((i / BARS_PER_SIDE) * freqData.length * 0.75);
-      value = freqData[bin] / 255;
+    if (hasReal) {
+      const bin = Math.floor((i / BARS_PER_SIDE) * bins.length * 0.75);
+      value = (bins[bin] || 0) / 255;
+    } else if (playing) {
+      // Same lively simulated wave the in-app visualizer uses when the stream is
+      // cross-origin (no real frequency data available).
+      const wave =
+        0.5 +
+        0.28 * Math.sin(t * 3.1 + i * 0.55) +
+        0.18 * Math.sin(t * 1.7 - i * 0.31) +
+        0.12 * Math.sin(t * 5.3 + i * 0.9);
+      value = Math.max(0, wave) * (0.45 + 0.55 * beat);
     } else {
-      // Idle shimmer so it still looks alive between songs.
-      value = (0.12 + 0.08 * Math.sin(t * 2 + i * 0.5)) * (0.5 + 0.5 * beat);
+      value = 0;
     }
+
     const taper = Math.sin((i / (BARS_PER_SIDE - 1)) * Math.PI * 0.5 + 0.15);
     value *= 0.35 + 0.65 * (1 - i / BARS_PER_SIDE) * taper + 0.2;
     value = Math.min(1, value) * level;
@@ -87,11 +115,11 @@ function draw(now) {
     const maxBarHeight = h * 0.92;
 
     const gradient = ctx.createLinearGradient(0, h, 0, 0);
-    gradient.addColorStop(0, "rgba(34, 179, 95, 0.05)");
-    gradient.addColorStop(0.5, "rgba(74, 206, 125, 0.6)");
-    gradient.addColorStop(1, "rgba(127, 227, 164, 0.95)");
+    gradient.addColorStop(0, "rgba(124, 58, 237, 0.08)");
+    gradient.addColorStop(0.5, "rgba(236, 72, 153, 0.6)");
+    gradient.addColorStop(1, "rgba(6, 182, 212, 0.95)");
     ctx.fillStyle = gradient;
-    ctx.shadowColor = "rgba(74, 206, 125, 0.6)";
+    ctx.shadowColor = "rgba(139, 92, 246, 0.6)";
     ctx.shadowBlur = 20;
 
     for (let b = 0; b < totalBars; b += 1) {
@@ -115,4 +143,4 @@ function draw(now) {
   requestAnimationFrame(draw);
 }
 
-initAudio().finally(() => requestAnimationFrame(draw));
+requestAnimationFrame(draw);

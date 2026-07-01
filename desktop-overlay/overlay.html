@@ -9,16 +9,49 @@
         height: 100%;
         background: transparent;
         overflow: hidden;
+        font-family: "Segoe UI", system-ui, sans-serif;
       }
       canvas {
         display: block;
         width: 100vw;
         height: 100vh;
       }
+      /* Native now-playing label, fed by the SMTC service. Sits just above the
+         wave, fades in only when a track is known. */
+      #nowplaying {
+        position: fixed;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 14px;
+        max-width: 70vw;
+        padding: 4px 14px;
+        border-radius: 999px;
+        background: rgba(6, 17, 13, 0.55);
+        color: #d7ffe6;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+        opacity: 0;
+        transition: opacity 0.4s ease;
+        pointer-events: none;
+      }
+      /* When the strip is docked to the top, float the label below the wave. */
+      body.top #nowplaying {
+        bottom: auto;
+        top: 14px;
+      }
+      #nowplaying.show {
+        opacity: 1;
+      }
     </style>
   </head>
   <body>
     <canvas id="wave"></canvas>
+    <div id="nowplaying"></div>
     <script src="overlay.js"></script>
   </body>
 </html>
