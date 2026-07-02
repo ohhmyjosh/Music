@@ -21,22 +21,32 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     let freqData = null;
+    let running = false;
+    let cssW = 0;
+    let cssH = 0;
 
-    const resize = () => {
+    // Size the backing store once per actual size change (via ResizeObserver)
+    // instead of reading clientWidth/clientHeight every frame, which forces a
+    // synchronous layout on each rAF tick and is a major source of jank.
+    const applySize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-        canvas.width = w * dpr;
-        canvas.height = h * dpr;
+      cssW = canvas.clientWidth;
+      cssH = canvas.clientHeight;
+      const nextW = Math.round(cssW * dpr);
+      const nextH = Math.round(cssH * dpr);
+      if (canvas.width !== nextW || canvas.height !== nextH) {
+        canvas.width = nextW;
+        canvas.height = nextH;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       }
     };
+    const ro = new ResizeObserver(applySize);
+    ro.observe(canvas);
+    applySize();
 
     const draw = (now) => {
-      resize();
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
+      const w = cssW;
+      const h = cssH;
       ctx.clearRect(0, 0, w, h);
 
       const { isPlaying, currentTrack } = usePlayerStore.getState();
@@ -92,6 +102,13 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
         heights[i] += (value - heights[i]) * (value > heights[i] ? 0.5 : 0.12);
       }
 
+      // Fully idle: nothing playing and the strip has finished fading out. Stop
+      // the loop entirely so we don't burn a rAF tick 60x/sec doing nothing. It
+      // is restarted the moment playback resumes (see the store subscription).
+      if (level < 0.005 && target === 0) {
+        running = false;
+        return;
+      }
       if (level < 0.005) {
         rafRef.current = requestAnimationFrame(draw);
         return;
@@ -107,8 +124,9 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
       gradient.addColorStop(0.5, "rgba(236, 72, 153, 0.85)");
       gradient.addColorStop(1, "rgba(34, 211, 238, 1)");
       ctx.fillStyle = gradient;
-      ctx.shadowColor = "rgba(139, 92, 246, 0.85)";
-      ctx.shadowBlur = 26;
+      // No canvas shadowBlur here: blurring ~84 rounded bars every frame is
+      // extremely expensive (especially on phones). The vertical gradient alone
+      // reads as a glow; the container's own styling adds any ambient bloom.
 
       for (let b = 0; b < totalBars; b += 1) {
         // Mirror around the centre: index 0 at the middle, growing outward.
@@ -132,8 +150,25 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
       rafRef.current = requestAnimationFrame(draw);
     };
 
-    rafRef.current = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(rafRef.current);
+    const start = () => {
+      if (running) return;
+      running = true;
+      rafRef.current = requestAnimationFrame(draw);
+    };
+
+    // Drive the loop from playback state: kick it on play, and let draw() park
+    // itself once the strip has eased out after a pause/stop.
+    const unsubscribe = usePlayerStore.subscribe((state) => {
+      if (state.isPlaying) start();
+    });
+    if (usePlayerStore.getState().isPlaying) start();
+
+    return () => {
+      ro.disconnect();
+      unsubscribe();
+      cancelAnimationFrame(rafRef.current);
+      running = false;
+    };
   }, []);
 
   if (variant === "inline") {

@@ -1,12 +1,11 @@
 import { create } from "zustand";
-import { normalizeTrack } from "../utils/normalizeTrack";
-import { demoTracks } from "../data/demoTracks";
-
-const demoQueue = demoTracks.map((track) => normalizeTrack(track, "demo"));
 
 export const usePlayerStore = create((set, get) => ({
-  queue: demoQueue,
-  currentTrack: demoQueue[0],
+  // Start empty: the app opens with no fake "now playing" track. Real, streamable
+  // songs (Audius) populate the queue as the feed loads, and any Play button sets
+  // the current track together with its own queue.
+  queue: [],
+  currentTrack: null,
   isPlaying: false,
   volume: 0.85,
   currentTime: 0,

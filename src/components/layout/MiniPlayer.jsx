@@ -134,7 +134,7 @@ export default function MiniPlayer() {
         onEnded={nextTrack}
       />
 
-      <div className="fixed bottom-[72px] left-0 right-0 z-30 px-2 xl:bottom-4 xl:left-24 xl:px-6">
+      <div className="fixed bottom-[calc(68px+env(safe-area-inset-bottom))] left-0 right-0 z-30 px-2 xl:bottom-4 xl:left-24 xl:px-6">
         <div className="mx-auto max-w-[1180px] overflow-hidden rounded-[22px] border border-white/10 bg-slate-950/95 shadow-[0_12px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl">
           <div className="h-[3px] w-full bg-white/5">
             <div className="h-full bg-accent-400 transition-all" style={{ width: `${progress}%` }} />

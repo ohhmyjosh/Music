@@ -66,6 +66,26 @@ export async function fetchAudiusTrending(limit = 20) {
   }
 }
 
+// Trending within a single Audius genre (e.g. "Hip-Hop/Rap", "Electronic",
+// "R&B/Soul"). Powers the themed shelves on the home feed with real, streamable
+// music instead of demo placeholders.
+export async function fetchAudiusByGenre(genre, limit = 12) {
+  try {
+    const host = await getHost();
+    const url = new URL(`${host}/v1/tracks/trending`);
+    url.searchParams.set("app_name", APP_NAME);
+    url.searchParams.set("genre", genre);
+    url.searchParams.set("limit", String(limit));
+
+    const response = await fetch(url);
+    const data = await response.json();
+    const tracks = (data.data || []).map((track) => mapAudiusTrack(host, track));
+    return tracks.length ? tracks : demoCatalog.slice(0, limit);
+  } catch {
+    return demoCatalog.slice(0, limit);
+  }
+}
+
 export async function searchAudiusTracks(query, limit = 25) {
   if (!query.trim()) {
     return fetchAudiusTrending(limit);

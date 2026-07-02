@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import SearchBar from "../components/search/SearchBar";
@@ -14,7 +14,7 @@ import { demoPlaylists } from "../data/demoPlaylists";
 import { demoGenres } from "../data/demoGenres";
 import { normalizeTrack } from "../utils/normalizeTrack";
 import { rankTracks } from "../utils/ranking";
-import { fetchAudiusTrending } from "../api/audius";
+import { fetchAudiusTrending, fetchAudiusByGenre } from "../api/audius";
 import heroBanner from "../assets/branding/banner.png";
 
 const chips = ["All", "Relax", "Workout", "Focus", "Indie", "R&B", "Hindi", "Downloadable"];
@@ -49,12 +49,32 @@ export default function Home() {
   };
   const currentTrack = usePlayerStore((state) => state.currentTrack);
   const recentlyPlayed = usePlayerStore((state) => state.recentlyPlayed);
+  const setQueue = usePlayerStore((state) => state.setQueue);
+  const queueLength = usePlayerStore((state) => state.queue.length);
 
   // Real, streamable music from the free Audius network.
   const { data: trending = [] } = useQuery({
     queryKey: ["audius-trending"],
-    queryFn: () => fetchAudiusTrending(15)
+    queryFn: () => fetchAudiusTrending(20)
   });
+  const { data: hipHop = [] } = useQuery({
+    queryKey: ["audius-genre", "Hip-Hop/Rap"],
+    queryFn: () => fetchAudiusByGenre("Hip-Hop/Rap", 12)
+  });
+  const { data: electronic = [] } = useQuery({
+    queryKey: ["audius-genre", "Electronic"],
+    queryFn: () => fetchAudiusByGenre("Electronic", 12)
+  });
+  const { data: rnb = [] } = useQuery({
+    queryKey: ["audius-genre", "R&B/Soul"],
+    queryFn: () => fetchAudiusByGenre("R&B/Soul", 12)
+  });
+
+  // Seed the player queue with real trending music once, so the very first Play
+  // (and next/previous) flows through streamable Audius songs rather than nothing.
+  useEffect(() => {
+    if (trending.length && !queueLength) setQueue(trending);
+  }, [trending, queueLength, setQueue]);
 
   const filteredTracks = useMemo(() => {
     let next = rankTracks(search, catalog);
@@ -74,8 +94,11 @@ export default function Home() {
     return next;
   }, [activeChip, search]);
 
-  const listenAgain = recentlyPlayed.length ? recentlyPlayed : filteredTracks.slice(0, 6);
-  const quickPicks = filteredTracks.slice(0, 6);
+  // Prefer real songs the user actually played; otherwise real trending music.
+  const listenAgain = recentlyPlayed.length
+    ? recentlyPlayed
+    : (trending.length ? trending : filteredTracks).slice(0, 10);
+  const quickPicks = (trending.length ? trending : filteredTracks).slice(0, 6);
 
   return (
     <div className="space-y-6">
@@ -136,6 +159,36 @@ export default function Home() {
         </SectionShelf>
       ) : null}
 
+      {hipHop.length ? (
+        <SectionShelf title="Hip-Hop right now">
+          <div className="feed-scroll flex gap-3 overflow-x-auto pb-1">
+            {hipHop.map((track) => (
+              <TrackCard key={track.id} track={track} queue={hipHop} compact />
+            ))}
+          </div>
+        </SectionShelf>
+      ) : null}
+
+      {electronic.length ? (
+        <SectionShelf title="Electronic & dance">
+          <div className="feed-scroll flex gap-3 overflow-x-auto pb-1">
+            {electronic.map((track) => (
+              <TrackCard key={track.id} track={track} queue={electronic} compact />
+            ))}
+          </div>
+        </SectionShelf>
+      ) : null}
+
+      {rnb.length ? (
+        <SectionShelf title="R&B & Soul">
+          <div className="feed-scroll flex gap-3 overflow-x-auto pb-1">
+            {rnb.map((track) => (
+              <TrackCard key={track.id} track={track} queue={rnb} compact />
+            ))}
+          </div>
+        </SectionShelf>
+      ) : null}
+
       <SectionShelf title="Listen again">
         <div className="feed-scroll flex gap-3 overflow-x-auto pb-1">
           {listenAgain.map((track) => (
@@ -147,7 +200,7 @@ export default function Home() {
       <SectionShelf title="Quick picks">
         <div className="space-y-3">
           {quickPicks.map((track) => (
-            <TrackRow key={track.id} track={track} queue={filteredTracks} />
+            <TrackRow key={track.id} track={track} queue={quickPicks} />
           ))}
         </div>
       </SectionShelf>

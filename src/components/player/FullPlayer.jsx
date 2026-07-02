@@ -31,7 +31,16 @@ export default function FullPlayer({ lyrics, recommendations = [] }) {
   } = usePlayerStore();
   const saveTrackOffline = useLibraryStore((state) => state.saveTrackOffline);
 
-  if (!currentTrack) return null;
+  if (!currentTrack) {
+    return (
+      <section className="rounded-[30px] border border-white/10 bg-slate-950/90 p-10 text-center">
+        <p className="font-display text-lg font-semibold text-white">Nothing playing yet</p>
+        <p className="mt-2 text-sm text-slate-400">
+          Pick a song from the home feed or search to start listening.
+        </p>
+      </section>
+    );
+  }
 
   const liked = likedTrackIds.includes(currentTrack.id);
   const canSaveOffline = Boolean(currentTrack.downloadUrl || currentTrack.localOnly);
