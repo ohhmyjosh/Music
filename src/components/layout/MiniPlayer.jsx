@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Pause, Play, SkipForward } from "lucide-react";
 import { Link } from "react-router-dom";
 import { usePlayerStore } from "../../store/playerStore";
-import { attachAnalyser, resumeAnalyser } from "../../audio/analyser";
+import { attachAnalyser, resumeAnalyser, unlockAudio, installAudioUnlock } from "../../audio/analyser";
 import { startOverlayBridge } from "../../audio/overlayBridge";
 import {
   setMediaSessionMetadata,
@@ -60,6 +60,13 @@ export default function MiniPlayer() {
     startOverlayBridge();
   }, []);
 
+  // Unlock the AudioContext on the first user gesture anywhere in the app, so it
+  // is already running by the time playback routes audio through it. Without this
+  // the context can stay suspended and produce total silence.
+  useEffect(() => {
+    installAudioUnlock();
+  }, []);
+
   // Register OS media-control handlers once. These drive hardware media keys and
   // the lock-screen / SMTC / Control Center buttons on every supported platform.
   useEffect(() => {
@@ -104,6 +111,12 @@ export default function MiniPlayer() {
     <>
       <audio
         ref={audioRef}
+        // Request the stream with CORS. Routing a cross-origin <audio> element
+        // through createMediaElementSource taints the graph and outputs pure
+        // silence unless the resource is CORS-clean. Audius (and the demo
+        // fallback) send Access-Control-Allow-Origin: *, so this both restores
+        // sound AND gives the visualizer real, non-zero frequency data.
+        crossOrigin="anonymous"
         onLoadedMetadata={(event) => {
           const dur = event.currentTarget.duration || currentTrack.duration || 0;
           setDuration(dur);
@@ -139,7 +152,10 @@ export default function MiniPlayer() {
             <div className="flex items-center gap-1 sm:gap-2">
               <button
                 className="rounded-full bg-white p-2.5 text-slate-950 transition hover:bg-accent-300"
-                onClick={togglePlay}
+                onClick={() => {
+                  unlockAudio();
+                  togglePlay();
+                }}
               >
                 {isPlaying ? <Pause size={16} /> : <Play size={16} />}
               </button>

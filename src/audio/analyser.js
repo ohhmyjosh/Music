@@ -5,11 +5,16 @@
 // the UI (the waveform visualizer) can read live frequency data without touching
 // playback.
 //
-// Notes on cross-origin audio: createMediaElementSource does NOT break playback
-// for cross-origin sources, but getByteFrequencyData() will return all zeros when
-// the stream is CORS-tainted (most public streaming sources). The visualizer
-// detects that and falls back to a simulated beat. Same-origin + blob sources
-// (i.e. tracks saved offline / imported locally) yield real, reactive data.
+// Notes on cross-origin audio: once an <audio> element is routed through
+// createMediaElementSource, the element no longer plays straight to the
+// speakers -- ALL output flows through this graph. If the media resource is
+// cross-origin and NOT CORS-clean, the Web Audio API taints the graph and emits
+// pure silence (the element still reports "playing"). The fix is to load the
+// element with crossOrigin="anonymous"; when the server sends the right CORS
+// headers (Audius, samplelib, blob/same-origin sources all do) playback works
+// AND getByteFrequencyData() returns real, reactive data. If a source is ever
+// genuinely CORS-tainted the data reads all zeros and the visualizer falls back
+// to a simulated beat.
 
 let audioContext = null;
 let analyser = null;
@@ -49,6 +54,32 @@ export function attachAnalyser(element) {
 export function resumeAnalyser() {
   if (audioContext && audioContext.state === "suspended") {
     audioContext.resume().catch(() => {});
+  }
+}
+
+// Ensure the context exists AND is running. Because every track is routed
+// through createMediaElementSource -> destination, a suspended context means
+// total silence (the <audio> element reports "playing" but no samples reach the
+// output). Chrome only honours resume() inside a real user gesture, so this must
+// be called from a gesture handler, not from a React effect that runs after it.
+export function unlockAudio() {
+  if (!ensureContext()) return;
+  if (audioContext.state === "suspended") {
+    audioContext.resume().catch(() => {});
+  }
+}
+
+// Install one-time global listeners so the very first user interaction anywhere
+// in the app unlocks audio, regardless of which control started playback (a Play
+// button on a card, the mini-player, a media key, etc.). Capture phase means we
+// run during the gesture, before React's click-driven effects.
+let unlockInstalled = false;
+export function installAudioUnlock() {
+  if (unlockInstalled || typeof window === "undefined") return;
+  unlockInstalled = true;
+  const handler = () => unlockAudio();
+  for (const evt of ["pointerdown", "touchstart", "keydown"]) {
+    window.addEventListener(evt, handler, { capture: true, passive: true });
   }
 }
 
