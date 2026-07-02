@@ -2,6 +2,7 @@ import { Outlet } from "react-router-dom";
 import { useEffect } from "react";
 import Sidebar from "./Sidebar";
 import MobileHeader from "./MobileHeader";
+import DesktopHeader from "./DesktopHeader";
 import BottomNav from "./BottomNav";
 import MiniPlayer from "./MiniPlayer";
 import WaveformVisualizer from "../player/WaveformVisualizer";
@@ -20,6 +21,7 @@ export default function AppShell() {
         <Sidebar />
         <div className="min-w-0 flex-1">
           <MobileHeader />
+          <DesktopHeader />
           <main className="px-4 pb-44 pt-4 sm:px-6 lg:px-8 xl:px-10 xl:pb-36 xl:pt-8">
             <Outlet />
           </main>
