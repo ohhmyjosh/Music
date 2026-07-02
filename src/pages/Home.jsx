@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import SearchBar from "../components/search/SearchBar";
 import SectionShelf from "../components/music/SectionShelf";
@@ -37,8 +38,15 @@ function getGreeting() {
 }
 
 export default function Home() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [activeChip, setActiveChip] = useState("All");
+
+  // Enter runs a real, network-backed search on the Search page (Audius).
+  const runSearch = (term) => {
+    const q = term.trim();
+    navigate(q ? `/search?q=${encodeURIComponent(q)}` : "/search");
+  };
   const currentTrack = usePlayerStore((state) => state.currentTrack);
   const recentlyPlayed = usePlayerStore((state) => state.recentlyPlayed);
 
@@ -80,7 +88,8 @@ export default function Home() {
         <SearchBar
           value={search}
           onChange={setSearch}
-          placeholder="Search songs, artists, moods..."
+          onSubmit={runSearch}
+          placeholder="Search all music — press Enter"
           large
         />
 

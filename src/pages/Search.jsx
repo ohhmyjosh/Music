@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import SearchBar from "../components/search/SearchBar";
 import SearchResults from "../components/search/SearchResults";
@@ -22,9 +23,16 @@ function scoreEntity(query, values) {
 }
 
 export default function SearchPage() {
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [searchParams] = useSearchParams();
+  const qParam = searchParams.get("q") || "";
+  const [query, setQuery] = useState(qParam);
+  const [debouncedQuery, setDebouncedQuery] = useState(qParam);
   const [activeFilter, setActiveFilter] = useState("Songs");
+
+  // Seed the box when arriving with a ?q= (e.g. submitted from the Home bar).
+  useEffect(() => {
+    setQuery(qParam);
+  }, [qParam]);
 
   // Debounce so we don't hit the Audius API on every keystroke.
   useEffect(() => {

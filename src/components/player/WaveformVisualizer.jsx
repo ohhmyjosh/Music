@@ -103,12 +103,12 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
       const maxBarHeight = h * 0.92;
 
       const gradient = ctx.createLinearGradient(0, h, 0, 0);
-      gradient.addColorStop(0, "rgba(124, 58, 237, 0.08)");
-      gradient.addColorStop(0.5, "rgba(236, 72, 153, 0.6)");
-      gradient.addColorStop(1, "rgba(6, 182, 212, 0.95)");
+      gradient.addColorStop(0, "rgba(124, 58, 237, 0.35)");
+      gradient.addColorStop(0.5, "rgba(236, 72, 153, 0.85)");
+      gradient.addColorStop(1, "rgba(34, 211, 238, 1)");
       ctx.fillStyle = gradient;
-      ctx.shadowColor = "rgba(139, 92, 246, 0.55)";
-      ctx.shadowBlur = 18;
+      ctx.shadowColor = "rgba(139, 92, 246, 0.85)";
+      ctx.shadowBlur = 26;
 
       for (let b = 0; b < totalBars; b += 1) {
         // Mirror around the centre: index 0 at the middle, growing outward.
@@ -144,9 +144,13 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
     );
   }
 
+  // Ambient: a tall, bright reactive strip spanning the whole window bottom.
+  // z-20 keeps it above page content but below the mini-player (z-30) and bottom
+  // nav (z-40) so those controls stay usable. Only a soft top fade blends it into
+  // the page — no heavy bottom gradient, so the bars stay vivid at their base.
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 h-40 overflow-hidden sm:h-48">
-      <div className="absolute inset-x-0 bottom-0 h-full bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 h-56 overflow-hidden sm:h-72">
+      <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-slate-950 to-transparent" />
       <canvas ref={canvasRef} className="relative h-full w-full" />
     </div>
   );

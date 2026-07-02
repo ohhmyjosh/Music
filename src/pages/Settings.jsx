@@ -1,3 +1,5 @@
+import InstallButton from "../components/pwa/InstallButton";
+
 export default function Settings() {
   const hasJamendoKey = Boolean(import.meta.env.VITE_JAMENDO_CLIENT_ID);
 
@@ -26,6 +28,17 @@ export default function Settings() {
         <p className="text-sm text-slate-400">Preferences</p>
         <h1 className="font-display text-2xl font-semibold text-white">Settings</h1>
       </div>
+
+      <section className="rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
+        <h2 className="font-display text-lg font-semibold text-white">Install app</h2>
+        <p className="mt-1 text-sm text-slate-400">
+          Add Josh-Fy to your phone or desktop home screen for a full-screen,
+          app-like experience with offline support.
+        </p>
+        <div className="mt-3">
+          <InstallButton />
+        </div>
+      </section>
 
       <div className="space-y-4">
         {sections.map((section) => (
