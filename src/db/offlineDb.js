@@ -28,14 +28,20 @@ export async function saveOfflineTrack(track, blob) {
       ...track,
       isOffline: true,
       source: track.source || "offline",
-      savedAt: Date.now(),
-      localBlob: blob,
       audioUrl: URL.createObjectURL(blob)
     },
     track.source || "offline"
   );
 
-  await offlineDb.offlineTracks.put(nextTrack);
+  // normalizeTrack only keeps a fixed set of fields, so the blob and savedAt
+  // must be attached to the record explicitly — otherwise the audio is never
+  // actually stored and the track fails to play after a reload (its audioUrl is
+  // a per-session blob: URL that dies with the page).
+  await offlineDb.offlineTracks.put({
+    ...nextTrack,
+    localBlob: blob,
+    savedAt: Date.now()
+  });
   return nextTrack;
 }
 

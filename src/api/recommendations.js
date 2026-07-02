@@ -1,5 +1,6 @@
 import { normalizeTrack } from "../utils/normalizeTrack";
 import { demoTracks } from "../data/demoTracks";
+import { fetchAudiusByGenre, fetchAudiusTrending } from "../api/audius";
 import {
   buildTasteProfile,
   getRecommendationScore,
@@ -16,6 +17,21 @@ const catalog = demoTracks.map((track) => normalizeTrack(track, "demo"));
 // When there is no taste history yet it falls back to pure seed similarity, and
 // with neither seed nor history it returns a popular slice of the catalog.
 export async function fetchRecommendations(seedTrack, { likedTracks = [], history = [] } = {}) {
+  // When the seed is a real, streamable Audius track, recommend more real music
+  // (same genre, else trending) so "Find similar" stays fully playable instead
+  // of dropping the listener onto short demo sample clips.
+  if (seedTrack?.source === "audius") {
+    try {
+      const pool = seedTrack.genre
+        ? await fetchAudiusByGenre(seedTrack.genre, 12)
+        : await fetchAudiusTrending(12);
+      const recs = pool.filter((track) => track.id !== seedTrack.id);
+      if (recs.length) return recs.slice(0, 6);
+    } catch {
+      // Fall through to the demo-catalog recommender below.
+    }
+  }
+
   const profile = buildTasteProfile({ likedTracks, history });
   const hasProfile = !isEmptyProfile(profile);
 

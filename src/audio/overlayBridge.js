@@ -96,6 +96,16 @@ function tick() {
 // Start streaming. Safe to call more than once; only the first call takes effect.
 export function startOverlayBridge() {
   if (started || typeof window === "undefined" || !("WebSocket" in window)) return;
+
+  // The overlay's server is plain ws:// on the loopback address. An HTTPS page
+  // cannot open an insecure ws:// socket (mixed content is blocked), and a phone
+  // or remote device can't reach the user's PC anyway. So only bridge from a
+  // local http origin (dev server / desktop). Otherwise we'd spin a 30fps timer
+  // and reconnect loop forever, spamming the console on the deployed web app.
+  const { protocol, hostname } = window.location;
+  const isLocalHost = hostname === "localhost" || hostname === "127.0.0.1";
+  if (protocol !== "http:" || !isLocalHost) return;
+
   started = true;
   connect();
   setInterval(tick, Math.round(1000 / FPS));
