@@ -1,0 +1,7 @@
+# The desktop overlay is a separate Electron app — not part of the web deploy.
+desktop-overlay
+
+# Build artifacts / local files (Vercel builds fresh in the cloud).
+dist
+node_modules
+*.cmd
