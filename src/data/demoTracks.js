@@ -1,10 +1,15 @@
 import { createCover } from "./demoArt";
 
+// Use the DIRECT file URLs, not the /lib/preview/ ones. The preview paths
+// 301-redirect and the redirect response carries no Access-Control-Allow-Origin
+// header, so with the <audio> element in CORS mode (crossOrigin="anonymous",
+// required so Web Audio isn't muted) the browser blocks the redirect and the
+// track fails to load. The direct /mp3/ URLs answer 200 + ACAO:* in one hop.
 const samples = [
-  "https://samplelib.com/lib/preview/mp3/sample-3s.mp3",
-  "https://samplelib.com/lib/preview/mp3/sample-6s.mp3",
-  "https://samplelib.com/lib/preview/mp3/sample-9s.mp3",
-  "https://samplelib.com/lib/preview/mp3/sample-12s.mp3"
+  "https://samplelib.com/mp3/sample-3s.mp3",
+  "https://samplelib.com/mp3/sample-6s.mp3",
+  "https://samplelib.com/mp3/sample-9s.mp3",
+  "https://samplelib.com/mp3/sample-12s.mp3"
 ];
 
 function buildTrack({
