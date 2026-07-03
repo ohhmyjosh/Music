@@ -1,3 +1,57 @@
+// Markers that identify a track as a remix/edit rather than the original. When
+// the user's own query contains one of these, they clearly WANT that variant, so
+// we don't penalise it — otherwise we push these below the closest-to-original.
+const REMIX_MARKERS = [
+  "remix", "bootleg", "flip", "mashup", "mash-up", "cover", "tribute",
+  "rework", "refix", "re-fix", "vip mix", "screwed", "chopped",
+  "slowed", "sped up", "spedup", "nightcore", "8d audio", "reverb mix",
+  "instrumental", "karaoke", "edit", "re-edit", "extended mix"
+];
+
+// Ranks live search results so the closest-to-original tracks land on top and
+// remixes/bootlegs/covers sink, unless the query explicitly asked for a variant.
+// Audius returns results in its own relevance order, which surfaces flips and
+// tributes above the real thing — this reorders that.
+export function rankSearchResults(query, tracks = []) {
+  const q = query.trim().toLowerCase();
+  const wantsRemix = q ? REMIX_MARKERS.some((marker) => q.includes(marker)) : false;
+  const tokens = q ? q.split(/\s+/).filter(Boolean) : [];
+
+  return [...tracks]
+    .map((track, index) => {
+      const title = (track.title || "").toLowerCase();
+      const artist = (track.artist || "").toLowerCase();
+      const haystack = [title, artist, (track.tags || []).join(" ").toLowerCase()].join(" ");
+
+      let score = 0;
+
+      if (q) {
+        if (artist === q) score += 200;            // whole query is the artist
+        else if (artist.includes(q)) score += 130; // artist contains the query
+        if (title === q) score += 120;
+        else if (title.includes(q)) score += 80;
+        if (title.startsWith(q)) score += 25;
+        for (const token of tokens) if (haystack.includes(token)) score += 12;
+      }
+
+      // Popularity as a gentle prior (sqrt so a viral track can't bury an exact
+      // title/artist match).
+      score += Math.min(60, Math.round(Math.sqrt(track.popularity || 0)));
+
+      // Demote remix-y uploads unless the searcher asked for that kind of thing.
+      if (!wantsRemix && REMIX_MARKERS.some((marker) => haystack.includes(marker))) {
+        score -= 150;
+      }
+
+      // Preserve the source order as a hair-thin tiebreaker for equal scores.
+      score -= index * 0.001;
+
+      return { track, score };
+    })
+    .sort((left, right) => right.score - left.score)
+    .map(({ track }) => track);
+}
+
 export function rankTracks(query, tracks = []) {
   const normalized = query.trim().toLowerCase();
 

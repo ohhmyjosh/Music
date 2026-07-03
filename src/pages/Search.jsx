@@ -9,7 +9,7 @@ import { demoAlbums } from "../data/demoAlbums";
 import { demoPlaylists } from "../data/demoPlaylists";
 import { demoGenres } from "../data/demoGenres";
 import { normalizeTrack } from "../utils/normalizeTrack";
-import { rankTracks } from "../utils/ranking";
+import { rankTracks, rankSearchResults } from "../utils/ranking";
 import { searchAudiusTracks } from "../api/audius";
 
 const filters = ["Songs", "Artists", "Albums", "Playlists", "Genres", "Downloadable"];
@@ -47,8 +47,11 @@ export default function SearchPage() {
   });
 
   const results = useMemo(() => {
-    // Prefer live Audius results; while they load, show ranked demo tracks.
-    const baseSongs = liveSongs.length ? liveSongs : rankTracks(query, tracks);
+    // Prefer live Audius results (re-ranked so originals beat remixes); while
+    // they load, show ranked demo tracks.
+    const baseSongs = liveSongs.length
+      ? rankSearchResults(debouncedQuery, liveSongs)
+      : rankTracks(query, tracks);
     const filteredSongs = activeFilter === "Downloadable"
       ? baseSongs.filter((track) => track.isDownloadable)
       : baseSongs;
@@ -87,13 +90,17 @@ export default function SearchPage() {
       playlists,
       genres
     };
-  }, [activeFilter, query, liveSongs]);
+  }, [activeFilter, query, debouncedQuery, liveSongs]);
 
   return (
     <div className="space-y-5">
       <div className="sticky top-[65px] z-20 space-y-3 bg-[#0a0a0f] pb-2 pt-1 xl:top-0">
         <h1 className="font-display text-2xl font-semibold text-white">Search</h1>
-        <SearchBar value={query} onChange={setQuery} placeholder="Search songs, artists, moods..." large />
+        {/* Desktop (xl+) already has a persistent search bar in the top header,
+            so only show this one on smaller screens to avoid a duplicate. */}
+        <div className="xl:hidden">
+          <SearchBar value={query} onChange={setQuery} placeholder="Search songs, artists, moods..." large />
+        </div>
         <div className="feed-scroll flex gap-2 overflow-x-auto pb-1">
           {filters.map((filter) => (
             <GenreChip key={filter} label={filter} active={filter === activeFilter} onClick={() => setActiveFilter(filter)} />
