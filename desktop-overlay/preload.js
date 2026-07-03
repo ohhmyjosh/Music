@@ -12,5 +12,8 @@ contextBridge.exposeInMainWorld("joshfy", {
   onNowPlaying: (cb) =>
     ipcRenderer.on("now-playing", (_event, data) => cb(data)),
   // Overlay settings (dock position, now-playing label on/off).
-  onConfig: (cb) => ipcRenderer.on("config", (_event, data) => cb(data))
+  onConfig: (cb) => ipcRenderer.on("config", (_event, data) => cb(data)),
+  // Widget -> player controls. Relayed to the Josh-Fy web app over the bridge.
+  // action: "toggle" | "play" | "pause" | "next" | "prev".
+  sendControl: (action) => ipcRenderer.send("widget-control", action)
 });

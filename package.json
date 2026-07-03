@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "desktop": "npm run build && cd desktop-overlay && npm start",
+    "desktop:pack": "npm run build && cd desktop-overlay && npm run build"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.81.5",
