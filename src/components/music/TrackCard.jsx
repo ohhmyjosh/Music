@@ -25,6 +25,8 @@ export default function TrackCard({ track, queue = [], compact = false }) {
       <Artwork
         src={track.artwork}
         alt={track.title}
+        artist={track.artist}
+        title={track.title}
         className={clsx(compact ? "h-16 w-16 rounded-2xl" : "aspect-square w-full rounded-[20px]")}
       />
 
