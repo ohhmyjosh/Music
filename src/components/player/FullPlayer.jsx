@@ -2,6 +2,7 @@ import { Download, Heart, ListMusic, Pause, Play, SkipBack, SkipForward, Volume2
 import { useLibraryStore } from "../../store/libraryStore";
 import { usePlayerStore } from "../../store/playerStore";
 import TrackRow from "../music/TrackRow";
+import Artwork from "../media/Artwork";
 import WaveformVisualizer from "./WaveformVisualizer";
 import clsx from "clsx";
 
@@ -48,19 +49,24 @@ export default function FullPlayer({ lyrics, recommendations = [] }) {
   return (
     <section className="relative overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/90 p-5 sm:p-6 xl:p-8">
       <div
-        className="absolute inset-0 opacity-25"
+        className="pointer-events-none absolute -inset-12 opacity-30"
         style={{
           backgroundImage: `url(${currentTrack.artwork})`,
           backgroundPosition: "center",
           backgroundSize: "cover",
-          filter: "blur(50px)"
+          // -inset-12 overscans the layer so the blurred edges (which fade to
+          // transparent) are pushed outside the card instead of leaving a halo.
+          // A smaller radius + transform hint keeps this cheap and smooth on
+          // phones, where blur(50px) over a full-bleed image was the main jank.
+          filter: "blur(32px)",
+          transform: "translateZ(0)"
         }}
       />
       <div className="absolute inset-0 bg-gradient-to-b from-slate-950/40 via-slate-950/75 to-slate-950" />
 
       <div className="relative grid gap-6 xl:grid-cols-[1fr_0.9fr] xl:items-start">
         <div className="space-y-5">
-          <img src={currentTrack.artwork} alt={currentTrack.title} className="mx-auto aspect-square w-full max-w-md rounded-[28px] object-cover soft-ring" />
+          <Artwork src={currentTrack.artwork} alt={currentTrack.title} className="mx-auto aspect-square w-full max-w-md rounded-[28px] soft-ring" />
 
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-accent-300">Now playing</p>

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef } from "react";
 import { Pause, Play, SkipForward } from "lucide-react";
 import { Link } from "react-router-dom";
 import { usePlayerStore } from "../../store/playerStore";
+import Artwork from "../media/Artwork";
+import WaveformVisualizer from "../player/WaveformVisualizer";
 import { attachAnalyser, resumeAnalyser, unlockAudio, installAudioUnlock } from "../../audio/analyser";
 import { startOverlayBridge } from "../../audio/overlayBridge";
 import {
@@ -135,14 +137,17 @@ export default function MiniPlayer() {
       />
 
       <div className="fixed bottom-[calc(68px+env(safe-area-inset-bottom))] left-0 right-0 z-30 px-2 xl:bottom-4 xl:left-24 xl:px-6">
-        <div className="mx-auto max-w-[1180px] overflow-hidden rounded-[22px] border border-white/10 bg-slate-950/95 shadow-[0_12px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-          <div className="h-[3px] w-full bg-white/5">
+        <div className="relative mx-auto max-w-[1180px] overflow-hidden rounded-[22px] border border-white/10 bg-[#0c0b13] shadow-[0_12px_50px_rgba(0,0,0,0.45)]">
+          {/* Signature monochrome equalizer, contained to the card's bottom edge. */}
+          <WaveformVisualizer variant="mini" />
+
+          <div className="relative z-10 h-[3px] w-full bg-white/5">
             <div className="h-full bg-accent-400 transition-all" style={{ width: `${progress}%` }} />
           </div>
 
-          <div className="flex items-center gap-3 px-3 py-2.5 sm:px-4 xl:px-5">
+          <div className="relative z-10 flex items-center gap-3 px-3 py-2.5 sm:px-4 xl:px-5">
             <Link to="/player" className="flex min-w-0 flex-1 items-center gap-3">
-              <img src={currentTrack.artwork} alt={currentTrack.title} className="h-12 w-12 rounded-xl object-cover" />
+              <Artwork src={currentTrack.artwork} alt={currentTrack.title} className="h-12 w-12 rounded-xl" />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-white">{currentTrack.title}</p>
                 <p className="truncate text-xs text-slate-400">{currentTrack.artist}</p>

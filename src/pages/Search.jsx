@@ -91,7 +91,7 @@ export default function SearchPage() {
 
   return (
     <div className="space-y-5">
-      <div className="sticky top-[65px] z-20 space-y-3 bg-slate-950/95 pb-2 pt-1 backdrop-blur xl:top-0">
+      <div className="sticky top-[65px] z-20 space-y-3 bg-[#0a0a0f] pb-2 pt-1 xl:top-0">
         <h1 className="font-display text-2xl font-semibold text-white">Search</h1>
         <SearchBar value={query} onChange={setQuery} placeholder="Search songs, artists, moods..." large />
         <div className="feed-scroll flex gap-2 overflow-x-auto pb-1">

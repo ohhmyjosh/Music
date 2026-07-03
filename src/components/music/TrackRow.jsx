@@ -1,4 +1,5 @@
 import { MoreVertical, Play } from "lucide-react";
+import Artwork from "../media/Artwork";
 import { usePlayerStore } from "../../store/playerStore";
 
 export default function TrackRow({ track, queue = [], showSource = true }) {
@@ -6,7 +7,7 @@ export default function TrackRow({ track, queue = [], showSource = true }) {
 
   return (
     <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
-      <img src={track.artwork} alt={track.title} className="h-12 w-12 rounded-xl object-cover" />
+      <Artwork src={track.artwork} alt={track.title} className="h-12 w-12 rounded-xl" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-white">{track.title}</p>
         <p className="truncate text-xs text-slate-400">
