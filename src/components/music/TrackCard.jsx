@@ -1,5 +1,6 @@
 import { Download, Heart, Play, Plus } from "lucide-react";
 import clsx from "clsx";
+import Artwork from "../media/Artwork";
 import { usePlayerStore } from "../../store/playerStore";
 import { useLibraryStore } from "../../store/libraryStore";
 
@@ -21,10 +22,12 @@ export default function TrackCard({ track, queue = [], compact = false }) {
         compact ? "min-w-[240px] items-center" : "min-w-[170px] flex-col"
       )}
     >
-      <img
+      <Artwork
         src={track.artwork}
         alt={track.title}
-        className={clsx(compact ? "h-16 w-16 rounded-2xl object-cover" : "aspect-square w-full rounded-[20px] object-cover")}
+        artist={track.artist}
+        title={track.title}
+        className={clsx(compact ? "h-16 w-16 rounded-2xl" : "aspect-square w-full rounded-[20px]")}
       />
 
       <div className="min-w-0 flex-1">

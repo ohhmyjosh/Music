@@ -1,0 +1,167 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      :root {
+        --accent: #8b5cf6;
+        --accent2: #ec4899;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+
+      /* The whole card is draggable; buttons opt out via no-drag. */
+      #card {
+        position: fixed;
+        inset: 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 16px 18px;
+        border-radius: 24px;
+        background: linear-gradient(160deg, rgba(26, 22, 37, 0.94), rgba(10, 10, 15, 0.96));
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 22px 60px rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(18px);
+        -webkit-app-region: drag;
+        overflow: hidden;
+      }
+
+      /* Album in the centre, with a play/pause button laid over it. */
+      #cover-wrap {
+        position: relative;
+        width: 176px;
+        height: 176px;
+        flex: 0 0 auto;
+      }
+      #cover {
+        width: 176px;
+        height: 176px;
+        border-radius: 20px;
+        object-fit: cover;
+        background: linear-gradient(135deg, var(--accent), #1a1a23 60%, #0a0a0f);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+      }
+      #cover-wrap.playing::after {
+        content: "";
+        position: absolute;
+        inset: -3px;
+        border-radius: 23px;
+        background: linear-gradient(135deg, var(--accent2), var(--accent));
+        opacity: 0.5;
+        z-index: -1;
+        filter: blur(10px);
+        animation: pulse 2.6s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 0.65; }
+      }
+
+      /* Big centred play/pause button on the album. */
+      #playpause {
+        -webkit-app-region: no-drag;
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 60px;
+        height: 60px;
+        border: none;
+        cursor: pointer;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        color: #0a0a0f;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+        transition: transform 0.12s ease, background 0.12s ease;
+      }
+      #playpause:hover {
+        background: #fff;
+        transform: translate(-50%, -50%) scale(1.06);
+      }
+
+      #meta {
+        width: 100%;
+        text-align: center;
+        min-width: 0;
+      }
+      #title {
+        color: #fff;
+        font-size: 14px;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #artist {
+        margin-top: 2px;
+        color: #a5a3b5;
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .dim { opacity: 0.6; }
+
+      #controls {
+        -webkit-app-region: no-drag;
+        display: flex;
+        align-items: center;
+        gap: 22px;
+      }
+      .side {
+        -webkit-app-region: no-drag;
+        width: 40px;
+        height: 40px;
+        border: none;
+        cursor: pointer;
+        border-radius: 999px;
+        background: transparent;
+        color: #cfcde0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .side:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+      svg { pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <div id="card">
+      <div id="cover-wrap">
+        <img id="cover" alt="" />
+        <button id="playpause" title="Play / Pause">
+          <svg id="icon-play" width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          <svg id="icon-pause" width="26" height="26" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+        </button>
+      </div>
+
+      <div id="meta">
+        <div id="title" class="dim">Nothing playing</div>
+        <div id="artist">Open Josh-Fy and hit play</div>
+      </div>
+
+      <div id="controls">
+        <button class="side" id="prev" title="Previous">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14l-11-7z"/></svg>
+        </button>
+        <button class="side" id="next" title="Next">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5l11 7-11 7z"/></svg>
+        </button>
+      </div>
+    </div>
+    <script src="widget.js"></script>
+  </body>
+</html>

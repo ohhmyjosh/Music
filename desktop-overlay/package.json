@@ -26,7 +26,15 @@
       "preload.js",
       "overlay.html",
       "overlay.js",
+      "widget.html",
+      "widget.js",
       "assets/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist",
+        "to": "dist"
+      }
     ],
     "win": {
       "target": "nsis",

@@ -78,6 +78,12 @@ export default function PlaylistCard({
         <img
           src={cover}
           alt={title}
+          onError={(event) => {
+            const fallback = createCover(title);
+            if (event.currentTarget.src !== fallback) {
+              event.currentTarget.src = fallback;
+            }
+          }}
           className="h-full w-full object-cover opacity-[0.95] transition duration-500 group-hover:scale-[1.05]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent" />

@@ -39,6 +39,37 @@ function connect() {
   socket.onopen = () => {
     reconnectDelay = 1000;
   };
+  socket.onmessage = (event) => {
+    // Controls coming back from the desktop widget (play/pause/next/prev).
+    let msg;
+    try {
+      msg = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+    if (!msg || msg.t !== "joshfy-control") return;
+
+    const store = usePlayerStore.getState();
+    switch (msg.action) {
+      case "toggle":
+        store.togglePlay();
+        break;
+      case "play":
+        store.play();
+        break;
+      case "pause":
+        store.pause();
+        break;
+      case "next":
+        store.nextTrack();
+        break;
+      case "prev":
+        store.previousTrack();
+        break;
+      default:
+        break;
+    }
+  };
   socket.onclose = () => {
     socket = null;
     scheduleReconnect();
@@ -85,7 +116,8 @@ function tick() {
         real,
         bins,
         title: currentTrack?.title || null,
-        artist: currentTrack?.artist || null
+        artist: currentTrack?.artist || null,
+        artwork: currentTrack?.artwork || null
       })
     );
   } catch {

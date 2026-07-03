@@ -119,10 +119,12 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
       const barWidth = Math.max(1, (w - gap * (totalBars - 1)) / totalBars);
       const maxBarHeight = h * 0.92;
 
+      // Monochrome white bars: soft at the base, bright at the peaks. Reads as a
+      // clean black-and-white equalizer rather than a coloured light show.
       const gradient = ctx.createLinearGradient(0, h, 0, 0);
-      gradient.addColorStop(0, "rgba(124, 58, 237, 0.35)");
-      gradient.addColorStop(0.5, "rgba(236, 72, 153, 0.85)");
-      gradient.addColorStop(1, "rgba(34, 211, 238, 1)");
+      gradient.addColorStop(0, "rgba(255, 255, 255, 0.10)");
+      gradient.addColorStop(0.55, "rgba(255, 255, 255, 0.45)");
+      gradient.addColorStop(1, "rgba(255, 255, 255, 0.95)");
       ctx.fillStyle = gradient;
       // No canvas shadowBlur here: blurring ~84 rounded bars every frame is
       // extremely expensive (especially on phones). The vertical gradient alone
@@ -163,9 +165,18 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
     });
     if (usePlayerStore.getState().isPlaying) start();
 
+    // Coming back from the background: the browser throttles rAF to a stop while
+    // hidden, and the loop may have parked itself. Kick it again on return so the
+    // wave is already moving by the time the user is looking at it.
+    const onVisible = () => {
+      if (!document.hidden && usePlayerStore.getState().isPlaying) start();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
     return () => {
       ro.disconnect();
       unsubscribe();
+      document.removeEventListener("visibilitychange", onVisible);
       cancelAnimationFrame(rafRef.current);
       running = false;
     };
@@ -179,13 +190,25 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
     );
   }
 
-  // Ambient: a tall, bright reactive strip spanning the whole window bottom.
-  // z-20 keeps it above page content but below the mini-player (z-30) and bottom
-  // nav (z-40) so those controls stay usable. Only a soft top fade blends it into
-  // the page — no heavy bottom gradient, so the bars stay vivid at their base.
+  // Mini: a short, monochrome equalizer that sits INSIDE the mini-player card,
+  // hugging its bottom edge. It's the app's signature "now playing" flourish —
+  // contained, subtle, and clean, instead of a tall coloured strip bleeding
+  // behind the whole screen. The parent card clips it via overflow-hidden.
+  if (variant === "mini") {
+    return (
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-9 overflow-hidden opacity-70">
+        <canvas ref={canvasRef} className="h-full w-full" />
+      </div>
+    );
+  }
+
+  // Ambient: a subtle reactive glow hugging the very bottom of the window. It
+  // sits at z-0 (behind all page content) and is kept short + semi-transparent
+  // so it reads as ambient light under the mini-player rather than bars drawn
+  // over the cards. A tall top fade blends it smoothly into the page.
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 h-56 overflow-hidden sm:h-72">
-      <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-slate-950 to-transparent" />
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-0 h-28 overflow-hidden opacity-60 sm:h-36">
+      <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-slate-950 to-transparent" />
       <canvas ref={canvasRef} className="relative h-full w-full" />
     </div>
   );

@@ -108,13 +108,17 @@ export default function Home() {
           <h1 className="font-display text-2xl font-semibold text-white">{getGreeting()}</h1>
         </div>
 
-        <SearchBar
-          value={search}
-          onChange={setSearch}
-          onSubmit={runSearch}
-          placeholder="Search all music — press Enter"
-          large
-        />
+        {/* On desktop the sticky header already carries a search box, so this
+            in-page one only shows on mobile to avoid a duplicated search bar. */}
+        <div className="xl:hidden">
+          <SearchBar
+            value={search}
+            onChange={setSearch}
+            onSubmit={runSearch}
+            placeholder="Search all music — press Enter"
+            large
+          />
+        </div>
 
         <div className="feed-scroll flex gap-2 overflow-x-auto pb-1">
           {chips.map((chip) => (
@@ -132,9 +136,9 @@ export default function Home() {
           <img
             src={heroBanner}
             alt="Josh-Fy banner"
-            className="h-20 w-full object-cover object-center sm:h-24"
+            className="h-20 w-full object-cover object-left sm:h-24"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/65 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/80 to-transparent" />
           <div className="absolute inset-y-0 left-0 flex max-w-[75%] flex-col justify-center px-4 sm:px-5">
             <p className="text-[11px] uppercase tracking-[0.3em] text-accent-300">Now spinning</p>
             <p className="mt-1 font-display text-sm font-semibold text-white sm:text-base">

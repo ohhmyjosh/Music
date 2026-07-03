@@ -9,8 +9,10 @@ const canvas = document.getElementById("wave");
 const ctx = canvas.getContext("2d");
 const nowPlayingEl = document.getElementById("nowplaying");
 
-const BARS_PER_SIDE = 48;
-const heights = new Float32Array(BARS_PER_SIDE);
+// A single directional sweep: bar 0 sits at the bottom-RIGHT (the origin) and
+// the bars march LEFT across the screen, trailing off toward the bottom-left.
+const TOTAL_BARS = 96;
+const heights = new Float32Array(TOTAL_BARS);
 let level = 0; // eases up when Josh-Fy is playing
 
 let dockTop = false; // strip docked to the top edge instead of the bottom
@@ -84,34 +86,36 @@ function draw(now) {
   const t = now / 1000;
   const beat = Math.pow(Math.max(0, Math.sin(t * Math.PI * 2)), 6);
 
-  for (let i = 0; i < BARS_PER_SIDE; i += 1) {
+  for (let i = 0; i < TOTAL_BARS; i += 1) {
+    // p: 0 at the right-edge origin, 1 at the far left edge.
+    const p = i / (TOTAL_BARS - 1);
     let value;
     if (hasReal) {
-      const bin = Math.floor((i / BARS_PER_SIDE) * bins.length * 0.75);
+      const bin = Math.floor(p * bins.length * 0.75);
       value = (bins[bin] || 0) / 255;
     } else if (playing) {
-      // Same lively simulated wave the in-app visualizer uses when the stream is
-      // cross-origin (no real frequency data available).
+      // Lively simulated wave whose crests travel from the right origin toward
+      // the left (the `- i` phase term makes the pattern flow leftward over time).
       const wave =
         0.5 +
-        0.28 * Math.sin(t * 3.1 + i * 0.55) +
-        0.18 * Math.sin(t * 1.7 - i * 0.31) +
-        0.12 * Math.sin(t * 5.3 + i * 0.9);
+        0.28 * Math.sin(t * 3.1 - i * 0.5) +
+        0.18 * Math.sin(t * 1.7 - i * 0.28) +
+        0.12 * Math.sin(t * 5.3 - i * 0.8);
       value = Math.max(0, wave) * (0.45 + 0.55 * beat);
     } else {
       value = 0;
     }
 
-    const taper = Math.sin((i / (BARS_PER_SIDE - 1)) * Math.PI * 0.5 + 0.15);
-    value *= 0.35 + 0.65 * (1 - i / BARS_PER_SIDE) * taper + 0.2;
+    // Anchor the energy at the bottom-right and trail it off toward the left.
+    const trail = Math.pow(1 - p, 0.65);
+    value *= 0.25 + 0.75 * trail;
     value = Math.min(1, value) * level;
     heights[i] += (value - heights[i]) * (value > heights[i] ? 0.5 : 0.12);
   }
 
   if (level > 0.004) {
-    const totalBars = BARS_PER_SIDE * 2;
     const gap = 2;
-    const barWidth = Math.max(1, (w - gap * (totalBars - 1)) / totalBars);
+    const barWidth = Math.max(1, (w - gap * (TOTAL_BARS - 1)) / TOTAL_BARS);
     const maxBarHeight = h * 0.92;
 
     const gradient = ctx.createLinearGradient(0, h, 0, 0);
@@ -122,10 +126,10 @@ function draw(now) {
     ctx.shadowColor = "rgba(139, 92, 246, 0.6)";
     ctx.shadowBlur = 20;
 
-    for (let b = 0; b < totalBars; b += 1) {
-      const side = b < BARS_PER_SIDE ? BARS_PER_SIDE - 1 - b : b - BARS_PER_SIDE;
-      const barHeight = Math.max(2, heights[side] * maxBarHeight);
-      const x = b * (barWidth + gap);
+    for (let i = 0; i < TOTAL_BARS; i += 1) {
+      const barHeight = Math.max(2, heights[i] * maxBarHeight);
+      // i = 0 hugs the right edge; each subsequent bar steps to the left.
+      const x = w - (i + 1) * barWidth - i * gap;
       const y = h - barHeight;
       const r = Math.min(barWidth / 2, 4);
       ctx.beginPath();

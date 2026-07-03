@@ -81,6 +81,22 @@ export function installAudioUnlock() {
   for (const evt of ["pointerdown", "touchstart", "keydown"]) {
     window.addEventListener(evt, handler, { capture: true, passive: true });
   }
+
+  // Because every track is routed through the AudioContext, a context the OS
+  // suspends while the app is backgrounded (screen lock, app switch) means total
+  // silence. Mobile browsers suspend the context on background and DON'T always
+  // resume it when you return. Re-resume whenever the page becomes visible or
+  // regains focus so playback continues seamlessly in the background and on
+  // return. Also try to resume the moment we go hidden — Android keeps a
+  // running context alive in the background, so this keeps music playing there.
+  const keepAlive = () => {
+    if (audioContext && audioContext.state === "suspended") {
+      audioContext.resume().catch(() => {});
+    }
+  };
+  document.addEventListener("visibilitychange", keepAlive);
+  window.addEventListener("focus", keepAlive);
+  window.addEventListener("pageshow", keepAlive);
 }
 
 export function getAnalyser() {
