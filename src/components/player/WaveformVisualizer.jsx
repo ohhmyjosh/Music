@@ -51,8 +51,11 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
 
       const { isPlaying, currentTrack } = usePlayerStore.getState();
 
-      // Ease the whole strip in when playing, out when paused/stopped.
-      const target = isPlaying && currentTrack ? 1 : 0;
+      // Ease the strip fully in while playing, hold a low idle shimmer whenever
+      // a track is loaded (so the bottom panel always shows the equalizer and it
+      // doesn't blink out on pause), and only fade fully out when nothing is
+      // loaded at all.
+      const target = currentTrack ? (isPlaying ? 1 : 0.28) : 0;
       levelRef.current += (target - levelRef.current) * 0.06;
       const level = levelRef.current;
 
@@ -117,7 +120,9 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
       const totalBars = BARS_PER_SIDE * 2;
       const gap = 2;
       const barWidth = Math.max(1, (w - gap * (totalBars - 1)) / totalBars);
-      const maxBarHeight = h * 0.92;
+      // Mini fills the whole panel behind the controls, so keep bars in the
+      // lower band where they read as an equalizer without washing out the text.
+      const maxBarHeight = h * (variant === "mini" ? 0.6 : 0.92);
 
       // Monochrome white bars: soft at the base, bright at the peaks. Reads as a
       // clean black-and-white equalizer rather than a coloured light show.
@@ -158,18 +163,19 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
       rafRef.current = requestAnimationFrame(draw);
     };
 
-    // Drive the loop from playback state: kick it on play, and let draw() park
-    // itself once the strip has eased out after a pause/stop.
+    // Drive the loop from player state: kick it whenever a track is loaded (not
+    // only while playing) so the panel equalizer is always present, and let
+    // draw() park itself only once nothing is loaded and the strip has eased out.
     const unsubscribe = usePlayerStore.subscribe((state) => {
-      if (state.isPlaying) start();
+      if (state.isPlaying || state.currentTrack) start();
     });
-    if (usePlayerStore.getState().isPlaying) start();
+    if (usePlayerStore.getState().currentTrack) start();
 
     // Coming back from the background: the browser throttles rAF to a stop while
     // hidden, and the loop may have parked itself. Kick it again on return so the
     // wave is already moving by the time the user is looking at it.
     const onVisible = () => {
-      if (!document.hidden && usePlayerStore.getState().isPlaying) start();
+      if (!document.hidden && usePlayerStore.getState().currentTrack) start();
     };
     document.addEventListener("visibilitychange", onVisible);
 
@@ -196,7 +202,7 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
   // behind the whole screen. The parent card clips it via overflow-hidden.
   if (variant === "mini") {
     return (
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-9 overflow-hidden opacity-70">
+      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden opacity-90">
         <canvas ref={canvasRef} className="h-full w-full" />
       </div>
     );
