@@ -1,12 +1,18 @@
-const fallbackArtwork =
+export const fallbackArtwork =
   "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 600'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%237c3aed'/%3E%3Cstop offset='55%25' stop-color='%231a1a23'/%3E%3Cstop offset='100%25' stop-color='%230a0a0f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='600' height='600' rx='48' fill='url(%23g)'/%3E%3Ctext x='60' y='330' fill='white' font-family='Arial,sans-serif' font-size='96' font-weight='700'%3EJF%3C/text%3E%3C/svg%3E";
+
+// Uploads (especially rips) often use underscores for spaces:
+// "Shakira_Ft_Wyclef_Jean_-_Hips_Dont_Lie". Show them like a human wrote them.
+function cleanText(value) {
+  return typeof value === "string" ? value.replace(/_+/g, " ").trim() : value;
+}
 
 export function normalizeTrack(track, source = "custom") {
   return {
     id: track.id ?? `${source}-${track.title}-${track.artist}`,
     source: track.source || source,
-    title: track.title ?? "Unknown title",
-    artist: track.artist ?? track.artist_name ?? "Unknown artist",
+    title: cleanText(track.title) || "Unknown title",
+    artist: cleanText(track.artist ?? track.artist_name) || "Unknown artist",
     album: track.album ?? track.release_title ?? "Single",
     artwork:
       track.artwork ||
