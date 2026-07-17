@@ -1,0 +1,198 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      :root {
+        --accent: #8b5cf6;
+        --accent2: #ec4899;
+        /* Sizing knobs — set per size class on <body>. */
+        --cover: 176px;
+        --play: 60px;
+        --title-size: 14px;
+        --artist-size: 12px;
+      }
+      body.size-small { --cover: 128px; --play: 48px; --title-size: 13px; --artist-size: 11px; }
+      body.size-large { --cover: 224px; --play: 68px; --title-size: 15px; --artist-size: 13px; }
+      body.compact { --cover: 44px; --play: 38px; --title-size: 13px; --artist-size: 11px; }
+      body.compact.size-small { --cover: 36px; --play: 32px; --title-size: 12px; --artist-size: 10px; }
+      body.compact.size-large { --cover: 56px; --play: 44px; --title-size: 14px; --artist-size: 12px; }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+
+      /* The whole card is draggable; buttons opt out via no-drag. */
+      #card {
+        position: fixed;
+        inset: 6px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 14px 16px;
+        border-radius: 22px;
+        background: linear-gradient(160deg, rgba(26, 22, 37, 0.94), rgba(10, 10, 15, 0.96));
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 22px 60px rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(18px);
+        -webkit-app-region: drag;
+        overflow: hidden;
+      }
+      /* Compact: one slim horizontal pill. */
+      body.compact #card {
+        flex-direction: row;
+        gap: 10px;
+        padding: 8px 12px 8px 8px;
+        border-radius: 999px;
+        align-items: center;
+      }
+
+      #cover-wrap {
+        position: relative;
+        width: var(--cover);
+        height: var(--cover);
+        flex: 0 0 auto;
+      }
+      #cover {
+        width: var(--cover);
+        height: var(--cover);
+        border-radius: 18px;
+        object-fit: cover;
+        background: linear-gradient(135deg, var(--accent), #1a1a23 60%, #0a0a0f);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+      }
+      body.compact #cover { border-radius: 999px; box-shadow: none; }
+      #cover-wrap.playing::after {
+        content: "";
+        position: absolute;
+        inset: -3px;
+        border-radius: 21px;
+        background: linear-gradient(135deg, var(--accent2), var(--accent));
+        opacity: 0.5;
+        z-index: -1;
+        filter: blur(10px);
+        animation: pulse 2.6s ease-in-out infinite;
+      }
+      body.compact #cover-wrap.playing::after { border-radius: 999px; }
+      @keyframes pulse {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 0.65; }
+      }
+
+      /* Full style: big play/pause laid over the album. Compact: it moves into
+         the controls row instead (see below). */
+      #playpause {
+        -webkit-app-region: no-drag;
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: var(--play);
+        height: var(--play);
+        border: none;
+        cursor: pointer;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        color: #0a0a0f;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+        transition: transform 0.12s ease, background 0.12s ease;
+      }
+      #playpause:hover {
+        background: #fff;
+        transform: translate(-50%, -50%) scale(1.06);
+      }
+      body.compact #playpause {
+        position: static;
+        transform: none;
+        flex: 0 0 auto;
+      }
+      body.compact #playpause:hover { transform: scale(1.06); }
+
+      #meta {
+        width: 100%;
+        text-align: center;
+        min-width: 0;
+      }
+      body.compact #meta { text-align: left; flex: 1 1 auto; }
+      #title {
+        color: #fff;
+        font-size: var(--title-size);
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #artist {
+        margin-top: 2px;
+        color: #a5a3b5;
+        font-size: var(--artist-size);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      body.compact #artist { display: none; }
+      .dim { opacity: 0.6; }
+
+      #controls {
+        -webkit-app-region: no-drag;
+        display: flex;
+        align-items: center;
+        gap: 22px;
+      }
+      body.compact #controls { gap: 4px; flex: 0 0 auto; }
+      .side {
+        -webkit-app-region: no-drag;
+        width: 40px;
+        height: 40px;
+        border: none;
+        cursor: pointer;
+        border-radius: 999px;
+        background: transparent;
+        color: #cfcde0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .side:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+      body.compact #prev { display: none; }
+      svg { pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <div id="card">
+      <div id="cover-wrap">
+        <img id="cover" alt="" />
+        <button id="playpause" title="Play / Pause">
+          <svg id="icon-play" width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          <svg id="icon-pause" width="26" height="26" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+        </button>
+      </div>
+
+      <div id="meta">
+        <div id="title" class="dim">Nothing playing</div>
+        <div id="artist">Open Josh-Fy and hit play</div>
+      </div>
+
+      <div id="controls">
+        <button class="side" id="prev" title="Previous">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14l-11-7z"/></svg>
+        </button>
+        <button class="side" id="next" title="Next">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5l11 7-11 7z"/></svg>
+        </button>
+      </div>
+    </div>
+    <script src="widget.js"></script>
+  </body>
+</html>
