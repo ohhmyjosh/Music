@@ -9,8 +9,9 @@ import { demoAlbums } from "../data/demoAlbums";
 import { demoPlaylists } from "../data/demoPlaylists";
 import { demoGenres } from "../data/demoGenres";
 import { normalizeTrack } from "../utils/normalizeTrack";
-import { rankTracks } from "../utils/ranking";
+import { rankTracks, rankSearchResults, splitRemixes } from "../utils/ranking";
 import { searchAudiusTracks } from "../api/audius";
+import { searchSaavnTracks } from "../api/saavn";
 
 const filters = ["Songs", "Artists", "Albums", "Playlists", "Genres", "Downloadable"];
 const tracks = demoTracks.map((track) => normalizeTrack(track, "demo"));
@@ -40,18 +41,32 @@ export default function SearchPage() {
     return () => clearTimeout(id);
   }, [query]);
 
-  // Real, playable songs from Audius (falls back to demo inside the adapter).
+  // Search is OFFICIAL-CATALOG ONLY. The label catalog (real releases: Sony,
+  // Universal, Warner, international hits) is the precise, original recording a
+  // searcher means. The Audius open network is indie uploads/remixes — great for
+  // discovery on the home feed, but it's what polluted search with covers and
+  // flips, so it is deliberately NOT used here. Only if the official source is
+  // down do we fall back to Audius so search still returns *something*.
   const { data: liveSongs = [], isFetching } = useQuery({
-    queryKey: ["audius-search", debouncedQuery],
-    queryFn: () => searchAudiusTracks(debouncedQuery)
+    queryKey: ["live-search", debouncedQuery],
+    queryFn: async () => {
+      const official = await searchSaavnTracks(debouncedQuery);
+      if (official.length) return official;
+      return searchAudiusTracks(debouncedQuery);
+    }
   });
 
   const results = useMemo(() => {
     // Prefer live Audius results; while they load, show ranked demo tracks.
-    const baseSongs = liveSongs.length ? liveSongs : rankTracks(query, tracks);
+    // Remix/cover/edit uploads are cut from the main list entirely — they only
+    // appear in the collapsed "remixes" bucket, or when the query asks for one.
+    const ranked = liveSongs.length
+      ? rankSearchResults(debouncedQuery, liveSongs)
+      : rankTracks(query, tracks);
+    const { originals, remixes } = splitRemixes(debouncedQuery, ranked);
     const filteredSongs = activeFilter === "Downloadable"
-      ? baseSongs.filter((track) => track.isDownloadable)
-      : baseSongs;
+      ? originals.filter((track) => track.isDownloadable)
+      : originals;
 
     const albums = demoAlbums
       .map((album) => ({ item: album, score: scoreEntity(query, [album.title, album.artist, album.genre, album.mood, ...(album.tags || [])]) }))
@@ -83,17 +98,22 @@ export default function SearchPage() {
     return {
       topResult: topCandidates[0] || null,
       songs: filteredSongs,
+      remixes,
       albums,
       playlists,
       genres
     };
-  }, [activeFilter, query, liveSongs]);
+  }, [activeFilter, query, debouncedQuery, liveSongs]);
 
   return (
     <div className="space-y-5">
-      <div className="sticky top-[65px] z-20 space-y-3 bg-slate-950/95 pb-2 pt-1 backdrop-blur xl:top-0">
+      <div className="sticky top-[65px] z-20 space-y-3 bg-[#0a0a0f] pb-2 pt-1 xl:top-0">
         <h1 className="font-display text-2xl font-semibold text-white">Search</h1>
-        <SearchBar value={query} onChange={setQuery} placeholder="Search songs, artists, moods..." large />
+        {/* Desktop (xl+) already has a persistent search bar in the top header,
+            so only show this one on smaller screens to avoid a duplicate. */}
+        <div className="xl:hidden">
+          <SearchBar value={query} onChange={setQuery} placeholder="Search songs, artists, moods..." large />
+        </div>
         <div className="feed-scroll flex gap-2 overflow-x-auto pb-1">
           {filters.map((filter) => (
             <GenreChip key={filter} label={filter} active={filter === activeFilter} onClick={() => setActiveFilter(filter)} />
