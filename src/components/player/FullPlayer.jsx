@@ -3,6 +3,7 @@ import { Download, Heart, Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipF
 import { useLibraryStore } from "../../store/libraryStore";
 import { usePlayerStore } from "../../store/playerStore";
 import Artwork from "../media/Artwork";
+import WaveformVisualizer from "./WaveformVisualizer";
 import clsx from "clsx";
 
 function formatTime(seconds) {
@@ -92,6 +93,12 @@ export default function FullPlayer({ lyrics, recommendations = [] }) {
           alt={currentTrack.title}
           className="mx-auto aspect-square w-full rounded-2xl shadow-[0_30px_80px_rgba(0,0,0,0.55)]"
         />
+
+        {/* Big reactive audio visualizer — the in-app centerpiece. Same shared
+            analyser as the mini-player, with the simulated wave as fallback. */}
+        <div className="relative h-32 w-full overflow-hidden rounded-2xl bg-gradient-to-b from-slate-900/50 to-slate-950/80 ring-1 ring-white/10 sm:h-40">
+          <WaveformVisualizer variant="inline" />
+        </div>
 
         <div className="text-center">
           <h1 className="font-display text-2xl font-semibold text-white sm:text-3xl">{currentTrack.title}</h1>

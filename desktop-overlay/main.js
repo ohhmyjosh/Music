@@ -13,7 +13,7 @@ const http = require("http");
 const url = require("url");
 const WebSocket = require("ws");
 
-const BAR_HEIGHT = 96; // visualizer strip height, in px — a clean waveform band rooted at the very bottom edge of the screen
+const BAR_HEIGHT = 168; // visualizer strip height, in px — a bold waveform band rooted at the very bottom edge of the screen
 const BRIDGE_PORT = 17632; // local port the Josh-Fy web app streams audio to
 const APP_PORT = 17650; // preferred port the bundled Josh-Fy UI is served on
 
