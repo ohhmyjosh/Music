@@ -13,7 +13,7 @@ const navItems = [
 
 export default function Sidebar() {
   return (
-    <aside className="sticky top-0 hidden h-screen w-24 shrink-0 border-r border-white/10 bg-black/30 px-3 py-5 backdrop-blur xl:flex xl:flex-col">
+    <aside className="sticky top-0 hidden h-screen w-24 shrink-0 border-r border-white/10 bg-black/30 px-3 pb-28 pt-5 backdrop-blur xl:flex xl:flex-col">
       <div className="flex flex-col items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.03] px-2 py-4">
         <img src={brandLogo} alt="Josh-Fy logo" className="h-12 w-12 rounded-2xl object-contain bg-white/5 p-1" />
         <div className="text-center">
@@ -39,10 +39,6 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
-
-      <div className="mt-auto rounded-3xl border border-white/10 bg-white/[0.03] p-3 text-center text-[11px] leading-5 text-slate-500">
-        Mobile-first feed and player UI.
-      </div>
     </aside>
   );
 }

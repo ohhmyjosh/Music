@@ -36,13 +36,6 @@ export default function PlayerPage() {
     enabled: Boolean(currentTrack)
   });
 
-  return (
-    <div className="space-y-4">
-      <div>
-        <p className="text-sm text-slate-400">Player</p>
-        <h1 className="font-display text-2xl font-semibold text-white">Now playing</h1>
-      </div>
-      <FullPlayer lyrics={lyrics} recommendations={recommendations} />
-    </div>
-  );
+  // Immersive, YT Music-style page: the player IS the page, no header above it.
+  return <FullPlayer lyrics={lyrics} recommendations={recommendations} />;
 }

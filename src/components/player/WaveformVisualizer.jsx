@@ -51,8 +51,11 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
 
       const { isPlaying, currentTrack } = usePlayerStore.getState();
 
-      // Ease the whole strip in when playing, out when paused/stopped.
-      const target = isPlaying && currentTrack ? 1 : 0;
+      // Ease the strip fully in while playing, hold a low idle shimmer whenever
+      // a track is loaded (so the bottom panel always shows the equalizer and it
+      // doesn't blink out on pause), and only fade fully out when nothing is
+      // loaded at all.
+      const target = currentTrack ? (isPlaying ? 1 : 0.28) : 0;
       levelRef.current += (target - levelRef.current) * 0.06;
       const level = levelRef.current;
 
@@ -117,12 +120,16 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
       const totalBars = BARS_PER_SIDE * 2;
       const gap = 2;
       const barWidth = Math.max(1, (w - gap * (totalBars - 1)) / totalBars);
-      const maxBarHeight = h * 0.92;
+      // Mini fills the whole panel behind the controls, so keep bars in the
+      // lower band where they read as an equalizer without washing out the text.
+      const maxBarHeight = h * (variant === "mini" ? 0.6 : 0.92);
 
+      // Monochrome white bars: soft at the base, bright at the peaks. Reads as a
+      // clean black-and-white equalizer rather than a coloured light show.
       const gradient = ctx.createLinearGradient(0, h, 0, 0);
-      gradient.addColorStop(0, "rgba(124, 58, 237, 0.35)");
-      gradient.addColorStop(0.5, "rgba(236, 72, 153, 0.85)");
-      gradient.addColorStop(1, "rgba(34, 211, 238, 1)");
+      gradient.addColorStop(0, "rgba(255, 255, 255, 0.10)");
+      gradient.addColorStop(0.55, "rgba(255, 255, 255, 0.45)");
+      gradient.addColorStop(1, "rgba(255, 255, 255, 0.95)");
       ctx.fillStyle = gradient;
       // No canvas shadowBlur here: blurring ~84 rounded bars every frame is
       // extremely expensive (especially on phones). The vertical gradient alone
@@ -156,16 +163,26 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
       rafRef.current = requestAnimationFrame(draw);
     };
 
-    // Drive the loop from playback state: kick it on play, and let draw() park
-    // itself once the strip has eased out after a pause/stop.
+    // Drive the loop from player state: kick it whenever a track is loaded (not
+    // only while playing) so the panel equalizer is always present, and let
+    // draw() park itself only once nothing is loaded and the strip has eased out.
     const unsubscribe = usePlayerStore.subscribe((state) => {
-      if (state.isPlaying) start();
+      if (state.isPlaying || state.currentTrack) start();
     });
-    if (usePlayerStore.getState().isPlaying) start();
+    if (usePlayerStore.getState().currentTrack) start();
+
+    // Coming back from the background: the browser throttles rAF to a stop while
+    // hidden, and the loop may have parked itself. Kick it again on return so the
+    // wave is already moving by the time the user is looking at it.
+    const onVisible = () => {
+      if (!document.hidden && usePlayerStore.getState().currentTrack) start();
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       ro.disconnect();
       unsubscribe();
+      document.removeEventListener("visibilitychange", onVisible);
       cancelAnimationFrame(rafRef.current);
       running = false;
     };
@@ -179,13 +196,25 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
     );
   }
 
-  // Ambient: a tall, bright reactive strip spanning the whole window bottom.
-  // z-20 keeps it above page content but below the mini-player (z-30) and bottom
-  // nav (z-40) so those controls stay usable. Only a soft top fade blends it into
-  // the page — no heavy bottom gradient, so the bars stay vivid at their base.
+  // Mini: a short, monochrome equalizer that sits INSIDE the mini-player card,
+  // hugging its bottom edge. It's the app's signature "now playing" flourish —
+  // contained, subtle, and clean, instead of a tall coloured strip bleeding
+  // behind the whole screen. The parent card clips it via overflow-hidden.
+  if (variant === "mini") {
+    return (
+      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden opacity-90">
+        <canvas ref={canvasRef} className="h-full w-full" />
+      </div>
+    );
+  }
+
+  // Ambient: a subtle reactive glow hugging the very bottom of the window. It
+  // sits at z-0 (behind all page content) and is kept short + semi-transparent
+  // so it reads as ambient light under the mini-player rather than bars drawn
+  // over the cards. A tall top fade blends it smoothly into the page.
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 h-56 overflow-hidden sm:h-72">
-      <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-slate-950 to-transparent" />
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-0 h-28 overflow-hidden opacity-60 sm:h-36">
+      <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-slate-950 to-transparent" />
       <canvas ref={canvasRef} className="relative h-full w-full" />
     </div>
   );
