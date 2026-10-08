@@ -23,22 +23,28 @@ let hostPromise = null;
 // Every host we know about, kept so the player can retry a failing stream on a
 // different node.
 let allHosts = [...KNOWN_HOSTS];
+// Nodes that failed a request this session; skipped when picking a new one.
+const badHosts = new Set();
 
 async function getHost() {
   if (hostPromise) return hostPromise;
 
   hostPromise = (async () => {
-    const candidates = [...KNOWN_HOSTS];
+    const candidates = [...KNOWN_HOSTS].filter((host) => !badHosts.has(host));
     try {
       const res = await fetchWithTimeout("https://api.audius.co", 3500);
       const data = await res.json();
       for (const host of data?.data || []) {
-        if (host && !host.includes("api.audius.co") && !candidates.includes(host)) {
+        if (host && !host.includes("api.audius.co") && !candidates.includes(host) && !badHosts.has(host)) {
           candidates.push(host);
         }
       }
     } catch {
       /* directory unavailable — the known hosts cover us */
+    }
+    if (!candidates.length) {
+      badHosts.clear(); // everything failed once: give them all another chance
+      candidates.push(...KNOWN_HOSTS);
     }
     allHosts = [...candidates];
 
@@ -93,15 +99,26 @@ function mapAudiusTrack(host, track) {
   };
 }
 
+// One retry on a different node: the node picked at startup can die mid-session.
 async function audiusGet(path, params) {
-  const host = await getHost();
-  const url = new URL(`${host}/v1/${path}`);
-  url.searchParams.set("app_name", APP_NAME);
-  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
-  const response = await fetchWithTimeout(url.toString(), 8000);
-  if (!response.ok) throw new Error(`Audius HTTP ${response.status}`);
-  const data = await response.json();
-  return (data.data || []).map((track) => mapAudiusTrack(host, track));
+  let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const host = await getHost();
+    const url = new URL(`${host}/v1/${path}`);
+    url.searchParams.set("app_name", APP_NAME);
+    for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
+    try {
+      const response = await fetchWithTimeout(url.toString(), 9000);
+      if (!response.ok) throw new Error(`Audius HTTP ${response.status}`);
+      const data = await response.json();
+      return (data.data || []).map((track) => mapAudiusTrack(host, track));
+    } catch (error) {
+      lastError = error;
+      badHosts.add(host);
+      hostPromise = null;
+    }
+  }
+  throw lastError;
 }
 
 export function fetchAudiusTrending(limit = 20, genre = "") {

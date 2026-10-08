@@ -48,10 +48,19 @@ export async function deleteDownload(id) {
   await db.downloads.delete(id);
 }
 
-// One-time read of the v1 offline tracks so earlier downloads/imports survive
-// the upgrade. Returns [] once they've been migrated.
-export async function takeLegacyOfflineTracks() {
+// Moves v1 offline tracks (pre-rebuild downloads/imports) into `downloads`.
+// A row is deleted from the old table only after its copy is stored, and rows
+// with no audio to move are left alone, so an interrupted or failed upgrade
+// never loses anything.
+export async function migrateLegacyOfflineTracks(toTrack) {
   const legacy = await db.offlineTracks.toArray();
-  if (legacy.length) await db.offlineTracks.clear();
-  return legacy;
+  for (const record of legacy) {
+    if (!(record.localBlob instanceof Blob)) continue;
+    try {
+      await putDownload(toTrack(record), record.localBlob);
+      await db.offlineTracks.delete(record.id);
+    } catch {
+      /* storage full or blocked: try again next launch */
+    }
+  }
 }

@@ -15,6 +15,9 @@ const nowPlayingEl = document.getElementById("nowplaying");
 
 let dockTop = false;
 let showNowPlaying = true;
+// Tray -> Intensity: scales brightness and bar height.
+const INTENSITY = { subtle: 0.65, normal: 1, bold: 1.25 };
+let intensity = 1;
 
 // Latest audio frame from the web app, plus when it arrived (for staleness).
 let frame = { playing: false, real: false, bins: [] };
@@ -29,6 +32,7 @@ if (window.joshfy) {
 
   window.joshfy.onConfig((cfg) => {
     dockTop = cfg.position === "top";
+    intensity = INTENSITY[cfg.intensity] || 1;
     showNowPlaying = cfg.showNowPlaying !== false;
     document.body.classList.toggle("top", dockTop);
     if (!showNowPlaying) nowPlayingEl.classList.remove("show");
@@ -99,17 +103,6 @@ function hash(n) {
   return x - Math.floor(x);
 }
 
-function simulatedValue(p, t) {
-  const beat = Math.pow(Math.max(0, Math.sin(t * Math.PI * 2)), 6);
-  const wave =
-    0.42 +
-    0.3 * Math.sin(t * 3.1 - p * 14) +
-    0.18 * Math.sin(t * 1.7 - p * 8) +
-    0.12 * Math.sin(t * 5.3 - p * 22);
-  const env = Math.sin(p * Math.PI); // fade toward both edges like the reference
-  return Math.max(0, (wave * 0.5 + 0.35 * beat)) * (0.5 + 0.5 * env);
-}
-
 function draw(now) {
   resize();
   const w = window.innerWidth;
@@ -125,11 +118,14 @@ function draw(now) {
   }
 
   const fresh = now - frameAt < 1200;
-  const playing = fresh && frame.playing;
+  // frame.viz is the web app's Music visualizer setting: off means no wave.
+  const playing = fresh && frame.playing && frame.viz !== false;
   const bins = frame.bins || [];
   const hasReal = playing && frame.real && bins.length > 0;
 
-  level += ((playing ? 1 : 0) - level) * 0.06;
+  // Time-based fade (~1.5s to clear after pause / visualizer off) so it takes
+  // the same time on a slow GPU as on a fast one.
+  level += ((playing ? 1 : 0) - level) * (1 - Math.pow(0.94, dt * 60));
 
   if (level > 0.004) {
     const t = now / 1000;
@@ -141,8 +137,6 @@ function draw(now) {
       const lowCount = Math.max(2, Math.floor(bins.length * 0.12));
       for (let i = 0; i < lowCount; i += 1) bass += bins[i] || 0;
       bass = bass / (lowCount * 255);
-    } else if (playing) {
-      bass = 0.4 + 0.5 * Math.pow(Math.max(0, Math.sin(t * Math.PI * 2)), 6);
     }
     bassAvg += (bass - bassAvg) * 0.04;
     if (bass > bassAvg * 1.22 && bass > 0.12) beatPulse = 1;
@@ -155,7 +149,7 @@ function draw(now) {
       if (pt.x < 0) pt.x += 1;
       const twinkle = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 2 + pt.ph));
       const [r, g, b] = colorAt(pt.x);
-      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.4 * twinkle * level})`;
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.25 * intensity * twinkle * level})`;
       ctx.beginPath();
       ctx.arc(pt.x * w, pt.y * h, pt.r, 0, Math.PI * 2);
       ctx.fill();
@@ -169,7 +163,7 @@ function draw(now) {
 
     // Bars grow UPWARD from the bottom edge only. Kept moderate so it reads as a
     // slim band across the bottom of the screen, not a wall.
-    const maxSpike = h * 0.66 * (1 + 0.18 * beatPulse);
+    const maxSpike = h * 0.66 * Math.min(1.2, intensity) * (1 + 0.18 * beatPulse);
 
     for (let i = 0; i < colCount; i += 1) {
       const p = i / (colCount - 1);
@@ -178,24 +172,28 @@ function draw(now) {
         const bin = Math.floor(Math.pow(p, 1.2) * bins.length * 0.9);
         value = (bins[bin] || 0) / 255;
       } else if (playing) {
-        value = simulatedValue(p, t);
+        // No audio data yet: a calm low line, never a fake beat.
+        value = 0.04 + 0.03 * Math.sin(t * 1.2 - p * 6);
       } else {
         value = 0;
       }
-      const jitter = 0.55 + 0.45 * (0.5 * Math.random() + 0.5 * hash(i * 13 + Math.floor(t * 20)));
-      value = Math.min(1, value * jitter) * level;
+      // A little deterministic texture between neighbouring bars; no random
+      // flicker, so the strip reads as one smooth waveform.
+      const texture = 0.85 + 0.15 * hash(i * 13 + Math.floor(t * 8));
+      value = Math.min(1, value * texture) * level;
       cols[i] += (value - cols[i]) * (value > cols[i] ? 0.7 : 0.2);
     }
 
-    ctx.shadowBlur = 8;
+    // No per-bar glow: a shadowBlur on ~400 bars per frame held the strip at
+    // ~8fps on integrated GPUs (measured: 8fps with it, ~53fps without).
+    ctx.shadowBlur = 0;
     for (let i = 0; i < colCount; i += 1) {
       const spike = cols[i] * maxSpike;
       if (spike < 0.5) continue;
       const p = i / (colCount - 1);
       const [r, g, b] = colorAt(p);
       const x = i * STEP;
-      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.92 * level})`;
-      ctx.shadowColor = `rgba(${r}, ${g}, ${b}, 0.8)`;
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${Math.min(1, 0.85 * intensity) * level})`;
       // Rise upward from the bottom edge only.
       ctx.fillRect(x, baseY - spike, barW, spike);
     }

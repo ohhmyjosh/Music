@@ -1,104 +1,135 @@
-// Shared Web Audio analyser for the whole app.
+// The optional Web Audio analyser behind the visualizer and the desktop overlay.
 //
-// There is exactly one <audio> element in the app (player/AudioEngine). We route
-// it through a single AudioContext -> AnalyserNode -> destination so any part of
-// the UI (the waveform visualizer) can read live frequency data without touching
-// playback.
+// The music never depends on this file. The <audio> element (player/AudioEngine)
+// plays on its own; only when the listener has the visualizer switched on is it
+// routed through AudioContext -> AnalyserNode -> speakers so we can read live
+// frequency data.
 //
-// Notes on cross-origin audio: once an <audio> element is routed through
-// createMediaElementSource, the element no longer plays straight to the
-// speakers -- ALL output flows through this graph. If the media resource is
-// cross-origin and NOT CORS-clean, the Web Audio API taints the graph and emits
-// pure silence (the element still reports "playing"). The fix is to load the
-// element with crossOrigin="anonymous"; when the server sends the right CORS
-// headers (Audius, samplelib, blob/same-origin sources all do) playback works
-// AND getByteFrequencyData() returns real, reactive data. If a source is ever
-// genuinely CORS-tainted the data reads all zeros and the visualizer falls back
-// to a simulated beat.
+// Routing is the risky part. Once createMediaElementSource is called, ALL sound
+// flows through the context, so:
+//   - a context that isn't running means silence (autoplay policy, iOS
+//     backgrounding), and
+//   - a stream that isn't CORS-clean means silence (the graph is tainted).
+// So we only route an element that was loaded with crossOrigin="anonymous", only
+// once the context is actually running, and if the context stops while music is
+// playing we report a failure and the engine swaps in a plain, unrouted element.
 
 let audioContext = null;
 let analyser = null;
 let sourceNode = null;
-let connectedElement = null;
+let routedElement = null;
+let failureListener = null;
+let resumeWatch = null;
 
 function ensureContext() {
   if (audioContext) return audioContext;
   const Ctx = window.AudioContext || window.webkitAudioContext;
   if (!Ctx) return null;
-
-  audioContext = new Ctx();
-  analyser = audioContext.createAnalyser();
-  analyser.fftSize = 128;          // 64 frequency bins - plenty for a bar strip
-  analyser.smoothingTimeConstant = 0.8;
-  analyser.connect(audioContext.destination);
+  try {
+    audioContext = new Ctx();
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 128; // 64 frequency bins, plenty for a bar strip
+    analyser.smoothingTimeConstant = 0.8;
+    analyser.connect(audioContext.destination);
+    audioContext.addEventListener?.("statechange", onStateChange);
+  } catch {
+    audioContext = null;
+    analyser = null;
+  }
   return audioContext;
 }
 
-// Attach the shared analyser to an <audio> element. Safe to call repeatedly;
-// createMediaElementSource may only be called once per element, so we guard it.
-export function attachAnalyser(element) {
-  if (!element) return;
-  if (!ensureContext()) return;
-  if (connectedElement === element) return;
+function fail(reason) {
+  const element = routedElement;
+  unrouteAnalyser();
+  failureListener?.(reason, element);
+}
 
+// A routed element whose context stops running is playing silence. Try to
+// resume; if that doesn't work quickly, give the music back to the element.
+function onStateChange() {
+  if (!routedElement || !audioContext) return;
+  if (audioContext.state === "running") {
+    clearTimeout(resumeWatch);
+    return;
+  }
+  if (routedElement.paused) return;
+  audioContext.resume?.().catch(() => {});
+  clearTimeout(resumeWatch);
+  resumeWatch = setTimeout(() => {
+    if (routedElement && !routedElement.paused && audioContext?.state !== "running") fail("context-stopped");
+  }, 1500);
+}
+
+// Route `element` through the analyser. Resolves true once routed. Never throws
+// and never routes into a context that isn't running.
+export async function routeThroughAnalyser(element) {
+  if (!element || routedElement === element) return routedElement === element;
+  if (element.crossOrigin !== "anonymous") return false;
+  if (!ensureContext()) return false;
+  if (audioContext.state !== "running") {
+    try {
+      await Promise.race([audioContext.resume(), new Promise((resolve) => setTimeout(resolve, 1500))]);
+    } catch {
+      /* stays suspended */
+    }
+    if (audioContext.state !== "running") return false;
+  }
+  if (!element.isConnected) return false;
   try {
+    unrouteAnalyser();
     sourceNode = audioContext.createMediaElementSource(element);
     sourceNode.connect(analyser);
-    connectedElement = element;
+    routedElement = element;
+    return true;
   } catch {
-    // Element was already wired to another MediaElementSource - ignore.
+    sourceNode = null;
+    return false;
   }
 }
 
-// AudioContext starts suspended until a user gesture. Call this from a click/play.
-export function resumeAnalyser() {
-  if (audioContext && audioContext.state === "suspended") {
-    audioContext.resume().catch(() => {});
+export function unrouteAnalyser() {
+  clearTimeout(resumeWatch);
+  try {
+    sourceNode?.disconnect();
+  } catch {
+    /* already gone */
   }
+  sourceNode = null;
+  routedElement = null;
 }
 
-// Ensure the context exists AND is running. Because every track is routed
-// through createMediaElementSource -> destination, a suspended context means
-// total silence (the <audio> element reports "playing" but no samples reach the
-// output). Chrome only honours resume() inside a real user gesture, so this must
-// be called from a gesture handler, not from a React effect that runs after it.
+export function isRouted(element) {
+  return Boolean(element) && routedElement === element;
+}
+
+// The engine registers here to hear "routing broke, play without it".
+export function onAnalyserFailure(listener) {
+  failureListener = listener;
+}
+
+// Gesture handlers call this so a suspended context can start. Only touches a
+// context that already exists; creating one is the visualizer's job.
 export function unlockAudio() {
-  if (!ensureContext()) return;
-  if (audioContext.state === "suspended") {
-    audioContext.resume().catch(() => {});
-  }
+  if (audioContext && audioContext.state !== "running") audioContext.resume?.().catch(() => {});
 }
 
-// Install one-time global listeners so the very first user interaction anywhere
-// in the app unlocks audio, regardless of which control started playback (a Play
-// button on a card, the mini-player, a media key, etc.). Capture phase means we
-// run during the gesture, before React's click-driven effects.
+// While routed, a context the OS suspends (screen lock, app switch) means
+// silence, so try to resume whenever the page comes back.
 let unlockInstalled = false;
 export function installAudioUnlock() {
   if (unlockInstalled || typeof window === "undefined") return;
   unlockInstalled = true;
-  const handler = () => unlockAudio();
   for (const evt of ["pointerdown", "touchstart", "keydown"]) {
-    window.addEventListener(evt, handler, { capture: true, passive: true });
+    window.addEventListener(evt, unlockAudio, { capture: true, passive: true });
   }
-
-  // Because every track is routed through the AudioContext, a context the OS
-  // suspends while the app is backgrounded (screen lock, app switch) means total
-  // silence. Mobile browsers suspend the context on background and DON'T always
-  // resume it when you return. Re-resume whenever the page becomes visible or
-  // regains focus so playback continues seamlessly in the background and on
-  // return. Also try to resume the moment we go hidden — Android keeps a
-  // running context alive in the background, so this keeps music playing there.
-  const keepAlive = () => {
-    if (audioContext && audioContext.state === "suspended") {
-      audioContext.resume().catch(() => {});
-    }
-  };
-  document.addEventListener("visibilitychange", keepAlive);
-  window.addEventListener("focus", keepAlive);
-  window.addEventListener("pageshow", keepAlive);
+  document.addEventListener("visibilitychange", unlockAudio);
+  window.addEventListener("focus", unlockAudio);
+  window.addEventListener("pageshow", unlockAudio);
 }
 
+// Live analyser, or null when nothing is routed (visualizer off, not started,
+// or failed). Readers must treat null as "no data", never as an error.
 export function getAnalyser() {
-  return analyser;
+  return routedElement && audioContext?.state === "running" ? analyser : null;
 }

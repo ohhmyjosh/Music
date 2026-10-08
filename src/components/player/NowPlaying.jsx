@@ -13,6 +13,7 @@ import RelatedPanel from "./RelatedPanel";
 import { LikeButtons, PlayPauseIcon, RepeatButton, ShuffleButton } from "./PlayerBar";
 import { usePlaybackClock, usePlayerStore } from "../../store/playerStore";
 import { useUiStore } from "../../store/uiStore";
+import { useSettingsStore } from "../../store/settingsStore";
 import { unlockAudio } from "../../audio/analyser";
 import { formatTime } from "../../utils/track";
 
@@ -132,7 +133,10 @@ export default function NowPlaying() {
   const togglePlay = usePlayerStore((state) => state.togglePlay);
   const next = usePlayerStore((state) => state.next);
   const previous = usePlayerStore((state) => state.previous);
-  const [view, setView] = useState("Song");
+  const visualizerOn = useSettingsStore((state) => state.visualizer);
+  const [chosenView, setView] = useState("Song");
+  // With the visualizer switched off in Settings there is only the cover.
+  const view = visualizerOn ? chosenView : "Song";
   const [mobileSheet, setMobileSheet] = useState(false);
   const { pathname } = useLocation();
   const firstPath = useRef(pathname);
@@ -181,7 +185,7 @@ export default function NowPlaying() {
         <div className="absolute inset-0 bg-gradient-to-b from-yt-base/70 via-yt-base/90 to-yt-base" />
         <div className="relative mx-auto flex h-full max-w-[1600px] gap-12 px-12 pb-6 pt-6">
           <div className="flex min-w-0 flex-1 flex-col items-center">
-            <ViewSwitch view={view} setView={setView} />
+            {visualizerOn ? <ViewSwitch view={view} setView={setView} /> : null}
             <div className="flex min-h-0 w-full flex-1 items-center justify-center py-8">
               <Stage track={track} view={view} className="aspect-square h-full max-h-[min(70vh,720px)] max-w-full" />
             </div>
@@ -207,7 +211,7 @@ export default function NowPlaying() {
           <button className="icon-btn" aria-label="Close player" onClick={close}>
             <ChevronDown size={28} />
           </button>
-          <ViewSwitch view={view} setView={setView} />
+          {visualizerOn ? <ViewSwitch view={view} setView={setView} /> : <span />}
           <MenuButton item={track} />
         </div>
 

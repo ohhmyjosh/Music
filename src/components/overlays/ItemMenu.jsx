@@ -70,7 +70,8 @@ function useEntries(item, context, close) {
     const liked = library.liked.some((track) => track.id === item.id);
     const disliked = library.disliked.includes(item.id);
     const downloaded = downloads.items.some((entry) => entry.track.id === item.id);
-    const pending = Boolean(downloads.pending[item.id]);
+    const progress = downloads.pending[item.id];
+    const pending = progress !== undefined;
     const streamable = item.source !== "local";
     return [
       streamable && {
@@ -113,7 +114,7 @@ function useEntries(item, context, close) {
       },
       streamable && {
         icon: downloaded ? Check : Download,
-        label: downloaded ? "Remove download" : pending ? "Downloading…" : "Download",
+        label: downloaded ? "Remove download" : pending ? `Downloading… ${Math.round(progress * 100)}%` : "Download",
         disabled: pending,
         run: () => {
           if (downloaded) {
@@ -124,10 +125,20 @@ function useEntries(item, context, close) {
             downloads
               .download(item)
               .then(() => toast(`"${item.title}" is available offline`))
-              .catch(() => toast("Download failed"));
+              .catch(() => toast(`Couldn't download "${item.title}"`));
           }
         }
       },
+      // Imported files live only on this device; this is how they're deleted.
+      !streamable &&
+        downloaded && {
+          icon: Trash2,
+          label: "Remove from this device",
+          run: () => {
+            downloads.remove(item.id);
+            toast("Removed from this device");
+          }
+        },
       { divider: true },
       item.albumId && { icon: Album, label: "Go to album", run: () => navigate(`/album/${item.albumId}`) },
       ...(item.artists || []).slice(0, 2).map((artist) => ({

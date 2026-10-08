@@ -17,6 +17,14 @@ const QUEUE_LIMIT = 400;
 const AUTOPLAY_THRESHOLD = 2; // songs left before radio tops the queue up
 
 let qidCounter = 0;
+// Bumped whenever the listener starts a new queue. Radio fetches remember the
+// generation they started in and throw their result away if it changed, so a
+// slow response for the previous song can never land in the new queue.
+let generation = 0;
+// The radio top-up in flight: { generation, promise }. Callers in the same
+// generation share it instead of being turned away while it loads.
+let topUp = null;
+
 function withQid(track) {
   qidCounter += 1;
   return { ...slimTrack(track), qid: `q${Date.now().toString(36)}${qidCounter}` };
@@ -87,7 +95,8 @@ export const usePlayerStore = create(
             ordered = [first, ...shuffleArray(ordered.filter((item) => item !== first))];
             index = 0;
           }
-          set({ queue: ordered.slice(0, QUEUE_LIMIT), unshuffledOrder, playingFrom });
+          generation += 1;
+          set({ queue: ordered.slice(0, QUEUE_LIMIT), unshuffledOrder, playingFrom, autoplayLoading: false });
           goTo(index);
         },
         playTrack: (track, playingFrom = null) => get().playTracks([track], 0, playingFrom),
@@ -101,15 +110,20 @@ export const usePlayerStore = create(
         // A radio: the seed plays now, similar music fills the queue behind it.
         startRadio: async (seed, label) => {
           get().playTracks([seed], 0, { label: label || `${seed.title} radio`, path: null });
+          const mine = generation;
           set({ autoplayLoading: true });
           try {
             const disliked = new Set(useLibraryStore.getState().disliked);
             const radio = await buildRadio(seed, { exclude: disliked, limit: 30 });
             // The listener may have started something else while this loaded.
-            if (get().queue[0]?.id !== seed.id) return;
-            set((state) => ({ queue: [...state.queue, ...radio.map(withQid)].slice(0, QUEUE_LIMIT) }));
+            if (generation !== mine) return;
+            const queued = new Set(get().queue.map((item) => item.id));
+            const fresh = radio.filter((track) => !queued.has(track.id));
+            set((state) => ({ queue: [...state.queue, ...fresh.map(withQid)].slice(0, QUEUE_LIMIT) }));
+          } catch {
+            /* catalog down: the seed still plays */
           } finally {
-            set({ autoplayLoading: false });
+            if (generation === mine) set({ autoplayLoading: false });
           }
         },
 
@@ -181,7 +195,11 @@ export const usePlayerStore = create(
             return;
           }
           if (autoplay) {
+            const mine = generation;
+            const qid = get().currentTrack?.qid;
             await get().ensureUpcoming(true);
+            // Something else started while the radio loaded: that wins.
+            if (generation !== mine || get().currentTrack?.qid !== qid) return;
             if (get().index < get().queue.length - 1) {
               goTo(get().index + 1);
               return;
@@ -202,31 +220,41 @@ export const usePlayerStore = create(
 
         // Top the queue up with radio when the listener is near its end.
         ensureUpcoming: async (force = false) => {
-          const { autoplay, autoplayLoading, queue, index, currentTrack } = get();
-          if (!autoplay || autoplayLoading || !currentTrack) return;
+          const { autoplay, queue, index, currentTrack } = get();
+          if (!autoplay || !currentTrack) return;
+          // One top-up per queue at a time; later callers wait on the same one.
+          if (topUp?.generation === generation) return topUp.promise;
           if (!force && queue.length - 1 - index > AUTOPLAY_THRESHOLD) return;
+          const mine = generation;
           set({ autoplayLoading: true });
-          try {
-            const exclude = new Set([
-              ...queue.map((item) => item.id),
-              ...useLibraryStore.getState().disliked
-            ]);
-            const radio = await buildRadio(currentTrack, { exclude, limit: 15 });
-            if (radio.length) {
+          const promise = (async () => {
+            try {
+              const exclude = new Set([
+                ...queue.map((item) => item.id),
+                ...useLibraryStore.getState().disliked
+              ]);
+              const radio = await buildRadio(currentTrack, { exclude, limit: 15 });
+              // A new queue started while this loaded: it isn't ours to extend.
+              if (generation !== mine || !radio.length) return;
+              const queued = new Set(get().queue.map((item) => item.id));
+              const fresh = radio.filter((track) => !queued.has(track.id));
               set((state) => ({
-                queue: [...state.queue, ...radio.map((track) => ({ ...withQid(track), autoplay: true }))]
+                queue: [...state.queue, ...fresh.map((track) => ({ ...withQid(track), autoplay: true }))]
                   .slice(-QUEUE_LIMIT)
               }));
               // Trimming from the front (very long sessions) shifts the cursor.
               const current = get().currentTrack;
               const at = get().queue.findIndex((item) => item.qid === current?.qid);
               if (at >= 0 && at !== get().index) set({ index: at });
+            } catch {
+              /* offline or catalog down — the queue simply ends */
+            } finally {
+              if (topUp?.promise === promise) topUp = null;
+              if (generation === mine) set({ autoplayLoading: false });
             }
-          } catch {
-            /* offline or catalog down — the queue simply ends */
-          } finally {
-            set({ autoplayLoading: false });
-          }
+          })();
+          topUp = { generation: mine, promise };
+          return promise;
         },
 
         // ---- Position, volume, modes --------------------------------------------

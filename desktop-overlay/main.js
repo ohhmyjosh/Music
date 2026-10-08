@@ -13,7 +13,8 @@ const http = require("http");
 const url = require("url");
 const WebSocket = require("ws");
 
-const BAR_HEIGHT = 168; // visualizer strip height, in px — a bold waveform band rooted at the very bottom edge of the screen
+// Visualizer strip height in px, rooted at the very bottom (or top) edge.
+const BAR_HEIGHTS = { slim: 110, medium: 168, tall: 240 };
 const BRIDGE_PORT = 17632; // local port the Josh-Fy web app streams audio to
 const APP_PORT = 17650; // preferred port the bundled Josh-Fy UI is served on
 
@@ -40,7 +41,9 @@ const defaults = {
   showNowPlaying: true,
   showWidget: true,
   widgetStyle: "full", // "full" card with album art, or "compact" pill bar
-  widgetSize: "medium" // small | medium | large
+  widgetSize: "medium", // small | medium | large
+  height: "medium", // slim | medium | tall
+  intensity: "normal" // subtle | normal | bold
 };
 let settings = { ...defaults };
 
@@ -201,7 +204,8 @@ function boundsForDisplay(display) {
   // bottom edge of the screen — over the taskbar, like it's part of the OS.
   const { x, y, width, height } = display.bounds;
   const top = settings.position === "top";
-  return { x, y: top ? y : y + height - BAR_HEIGHT, width, height: BAR_HEIGHT };
+  const bar = BAR_HEIGHTS[settings.height] || BAR_HEIGHTS.medium;
+  return { x, y: top ? y : y + height - bar, width, height: bar };
 }
 
 function createOverlayForDisplay(display) {
@@ -365,6 +369,13 @@ function broadcast(channel, payload) {
   dataWindows().forEach((w) => w.webContents.send(channel, payload));
 }
 
+// Audio frames go to the widget always (play state) but to the overlays only
+// while they're switched on, so a hidden overlay does no drawing work.
+function broadcastAudio(payload) {
+  if (settings.enabled) overlays.forEach((w) => !w.isDestroyed() && w.webContents.send("audio-data", payload));
+  if (widget && !widget.isDestroyed()) widget.webContents.send("audio-data", payload);
+}
+
 // ---- Audio bridge (Josh-Fy web app <-> overlay/widget) --------------------
 // The web app connects here and streams its OWN analyser frames. This is the
 // only source of visualizer data, so the overlay reacts to Josh-Fy alone. The
@@ -388,8 +399,10 @@ function startAudioBridge() {
       }
       if (!msg || msg.t !== "joshfy-audio") return;
 
-      broadcast("audio-data", {
+      broadcastAudio({
         playing: Boolean(msg.playing),
+        // The web app's Music visualizer setting; off means no wave at all.
+        viz: msg.viz !== false,
         real: Boolean(msg.real),
         bins: Array.isArray(msg.bins) ? msg.bins : []
       });
@@ -406,7 +419,7 @@ function startAudioBridge() {
     socket.on("close", () => {
       if (activeAppSocket === socket) activeAppSocket = null;
       // Web app closed/navigated away — clear the wave and label.
-      broadcast("audio-data", { playing: false, real: false, bins: [] });
+      broadcastAudio({ playing: false, viz: true, real: false, bins: [] });
       lastNowPlaying = { title: null, artist: null, artwork: null, status: "None" };
       broadcast("now-playing", lastNowPlaying);
     });
@@ -506,6 +519,42 @@ function buildMenu() {
           click: () => setPosition("top")
         }
       ]
+    },
+    {
+      label: "Height",
+      submenu: [
+        ["slim", "Slim"],
+        ["medium", "Medium"],
+        ["tall", "Tall"]
+      ].map(([value, label]) => ({
+        label,
+        type: "radio",
+        checked: (settings.height || "medium") === value,
+        click: () => {
+          settings.height = value;
+          saveSettings();
+          repositionOverlays();
+          refreshMenu();
+        }
+      }))
+    },
+    {
+      label: "Intensity",
+      submenu: [
+        ["subtle", "Subtle"],
+        ["normal", "Normal"],
+        ["bold", "Bold"]
+      ].map(([value, label]) => ({
+        label,
+        type: "radio",
+        checked: (settings.intensity || "normal") === value,
+        click: () => {
+          settings.intensity = value;
+          saveSettings();
+          broadcast("config", settings);
+          refreshMenu();
+        }
+      }))
     },
     {
       label: "Show track name",

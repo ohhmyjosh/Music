@@ -13,15 +13,20 @@
 
 import { getAnalyser } from "./analyser";
 import { usePlayerStore } from "../store/playerStore";
+import { useSettingsStore } from "../store/settingsStore";
 
 const OVERLAY_URL = "ws://127.0.0.1:17632";
 const FPS = 30;
+// With the visualizer off (or nothing playing) only now-playing info is sent,
+// once a second, so the widget stays current without a 30fps stream.
+const IDLE_INTERVAL_MS = 1000;
 
 let socket = null;
 let started = false;
 let freqData = null;
 let reconnectDelay = 1000;
 let reconnectTimer = null;
+let lastSentAt = 0;
 
 function scheduleReconnect() {
   clearTimeout(reconnectTimer);
@@ -88,31 +93,41 @@ function tick() {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
 
   const { isPlaying, currentTrack } = usePlayerStore.getState();
-  const analyser = getAnalyser();
+  const viz = useSettingsStore.getState().visualizer;
+  const playing = Boolean(isPlaying && currentTrack);
+  const now = Date.now();
+  if (!(viz && playing) && now - lastSentAt < IDLE_INTERVAL_MS) return;
+  lastSentAt = now;
 
   let real = false;
   let bins = [];
+  const analyser = viz && playing ? getAnalyser() : null;
   if (analyser) {
-    if (!freqData || freqData.length !== analyser.frequencyBinCount) {
-      freqData = new Uint8Array(analyser.frequencyBinCount);
-    }
-    analyser.getByteFrequencyData(freqData);
-    // Cross-origin streams report all-zero data; flag whether it's real so the
-    // overlay can fall back to the same simulated wave the in-app visualizer uses.
-    for (let i = 0; i < freqData.length; i += 1) {
-      if (freqData[i] > 0) {
-        real = true;
-        break;
+    try {
+      if (!freqData || freqData.length !== analyser.frequencyBinCount) {
+        freqData = new Uint8Array(analyser.frequencyBinCount);
       }
+      analyser.getByteFrequencyData(freqData);
+      // All-zero data means nothing is reaching the analyser yet; flag whether
+      // it's real so the overlay can keep a calm idle line instead.
+      for (let i = 0; i < freqData.length; i += 1) {
+        if (freqData[i] > 0) {
+          real = true;
+          break;
+        }
+      }
+      bins = Array.from(freqData);
+    } catch {
+      bins = [];
     }
-    bins = Array.from(freqData);
   }
 
   try {
     socket.send(
       JSON.stringify({
         t: "joshfy-audio",
-        playing: Boolean(isPlaying && currentTrack),
+        playing,
+        viz,
         real,
         bins,
         title: currentTrack?.title || null,
