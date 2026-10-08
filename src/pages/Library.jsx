@@ -61,7 +61,7 @@ function PlaylistsTab() {
 
   return (
     <Grid>
-      <button onClick={() => openCreatePlaylist()} className="group block text-left">
+      <button onClick={() => openCreatePlaylist()} className="group block self-start text-left">
         <div className="flex aspect-square items-center justify-center rounded-md bg-white/[0.07] transition group-hover:bg-white/[0.15]">
           <Plus size={44} />
         </div>
