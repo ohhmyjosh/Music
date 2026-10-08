@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import clsx from "clsx";
-import { fallbackArtwork } from "../../utils/normalizeTrack";
+import { fallbackArtwork } from "../../utils/track";
 import { fetchOfficialArtwork } from "../../api/artwork";
 
 // Shared cover-art image. Never lets flexbox squash it (shrink-0), and swaps in
@@ -42,7 +42,8 @@ export default function Artwork({ src, alt = "", className, artist, title, ...re
           event.currentTarget.src = fallbackArtwork;
         }
       }}
-      className={clsx("shrink-0 object-cover", className)}
+      draggable={false}
+      className={clsx("shrink-0 bg-white/[0.06] object-cover", className)}
       {...rest}
     />
   );

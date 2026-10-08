@@ -1,131 +1,277 @@
-import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import SearchBar from "../components/search/SearchBar";
-import SearchResults from "../components/search/SearchResults";
-import GenreChip from "../components/music/GenreChip";
-import { demoTracks } from "../data/demoTracks";
-import { demoAlbums } from "../data/demoAlbums";
-import { demoPlaylists } from "../data/demoPlaylists";
-import { demoGenres } from "../data/demoGenres";
-import { normalizeTrack } from "../utils/normalizeTrack";
-import { rankTracks, rankSearchResults, splitRemixes } from "../utils/ranking";
-import { searchAudiusTracks } from "../api/audius";
-import { searchSaavnTracks } from "../api/saavn";
+import clsx from "clsx";
+import { History, Play, Radio, X } from "lucide-react";
+import SearchBox from "../components/search/SearchBox";
+import Artwork from "../components/media/Artwork";
+import SongRow from "../components/music/SongRow";
+import MediaCard from "../components/music/MediaCard";
+import Shelf, { RowsSkeleton } from "../components/music/Shelf";
+import { collectionCards } from "../components/music/QueryShelf";
+import { searchAlbums, searchArtists, searchPlaylists, searchSongs } from "../api/saavn";
+import { searchAudius } from "../api/audius";
+import { GENRES, MOODS } from "../api/feed";
+import { usePlayerStore } from "../store/playerStore";
+import { useLibraryStore } from "../store/libraryStore";
+import { loadCollectionTracks, playCollection } from "../lib/queries";
+import { formatCount } from "../utils/track";
 
-const filters = ["Songs", "Artists", "Albums", "Playlists", "Genres", "Downloadable"];
-const tracks = demoTracks.map((track) => normalizeTrack(track, "demo"));
+const FILTERS = [
+  { id: "all", label: "All" },
+  { id: "songs", label: "Songs" },
+  { id: "albums", label: "Albums" },
+  { id: "artists", label: "Artists" },
+  { id: "playlists", label: "Playlists" },
+  { id: "community", label: "Community" }
+];
 
-function scoreEntity(query, values) {
-  const normalized = query.trim().toLowerCase();
-  const haystack = values.join(" ").toLowerCase();
-  if (!normalized) return 1;
-  return haystack.includes(normalized) ? 100 + normalized.length : 0;
+const SEARCHERS = {
+  songs: (q) => searchSongs(q, 40),
+  albums: (q) => searchAlbums(q, 24),
+  artists: (q) => searchArtists(q, 24),
+  playlists: (q) => searchPlaylists(q, 24),
+  community: (q) => searchAudius(q, 30)
+};
+
+function useSearch(kind, q, enabled = true) {
+  return useQuery({
+    queryKey: ["search", kind, q.toLowerCase()],
+    queryFn: () => SEARCHERS[kind](q),
+    enabled: enabled && Boolean(q)
+  });
 }
 
-export default function SearchPage() {
-  const [searchParams] = useSearchParams();
-  const qParam = searchParams.get("q") || "";
-  const [query, setQuery] = useState(qParam);
-  const [debouncedQuery, setDebouncedQuery] = useState(qParam);
-  const [activeFilter, setActiveFilter] = useState("Songs");
+function normalize(text = "") {
+  return text.toLowerCase().replace(/[^a-z0-9ऀ-ॿ]+/g, " ").trim();
+}
 
-  // Seed the box when arriving with a ?q= (e.g. submitted from the Home bar).
-  useEffect(() => {
-    setQuery(qParam);
-  }, [qParam]);
+// YouTube Music leads with one big "Top result": the artist when the query is
+// their name, otherwise the best-matching song.
+function TopResult({ q, songs, artists }) {
+  const startRadio = usePlayerStore((state) => state.startRadio);
+  const playTracks = usePlayerStore((state) => state.playTracks);
+  const artist = artists?.[0];
+  const artistMatch = artist && normalize(artist.title) === normalize(q);
+  const song = songs?.[0];
 
-  // Debounce so we don't hit the Audius API on every keystroke.
-  useEffect(() => {
-    const id = setTimeout(() => setDebouncedQuery(query), 350);
-    return () => clearTimeout(id);
-  }, [query]);
-
-  // Search is OFFICIAL-CATALOG ONLY. The label catalog (real releases: Sony,
-  // Universal, Warner, international hits) is the precise, original recording a
-  // searcher means. The Audius open network is indie uploads/remixes — great for
-  // discovery on the home feed, but it's what polluted search with covers and
-  // flips, so it is deliberately NOT used here. Only if the official source is
-  // down do we fall back to Audius so search still returns *something*.
-  const { data: liveSongs = [], isFetching } = useQuery({
-    queryKey: ["live-search", debouncedQuery],
-    queryFn: async () => {
-      const official = await searchSaavnTracks(debouncedQuery);
-      if (official.length) return official;
-      return searchAudiusTracks(debouncedQuery);
-    }
-  });
-
-  const results = useMemo(() => {
-    // Prefer live Audius results; while they load, show ranked demo tracks.
-    // Remix/cover/edit uploads are cut from the main list entirely — they only
-    // appear in the collapsed "remixes" bucket, or when the query asks for one.
-    const ranked = liveSongs.length
-      ? rankSearchResults(debouncedQuery, liveSongs)
-      : rankTracks(query, tracks);
-    const { originals, remixes } = splitRemixes(debouncedQuery, ranked);
-    const filteredSongs = activeFilter === "Downloadable"
-      ? originals.filter((track) => track.isDownloadable)
-      : originals;
-
-    const albums = demoAlbums
-      .map((album) => ({ item: album, score: scoreEntity(query, [album.title, album.artist, album.genre, album.mood, ...(album.tags || [])]) }))
-      .filter(({ score }) => !query || score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map(({ item }) => item);
-
-    const playlists = demoPlaylists
-      .map((playlist) => ({ item: playlist, score: scoreEntity(query, [playlist.title, playlist.subtitle, playlist.genre, playlist.mood, ...(playlist.tags || [])]) }))
-      .filter(({ score }) => !query || score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map(({ item }) => item);
-
-    const genres = demoGenres
-      .map((genre) => ({ item: genre, score: scoreEntity(query, [genre.label, genre.description, ...(genre.tags || [])]) }))
-      .filter(({ score }) => !query || score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map(({ item }) => item);
-
-    const topCandidates = [
-      filteredSongs[0] ? { kind: "track", item: filteredSongs[0], score: filteredSongs[0].popularity || 50 } : null,
-      albums[0] ? { kind: "album", item: albums[0], score: 80 } : null,
-      playlists[0] ? { kind: "playlist", item: playlists[0], score: 78 } : null,
-      genres[0] ? { kind: "genre", item: genres[0], score: 60 } : null
-    ].filter(Boolean);
-
-    topCandidates.sort((a, b) => b.score - a.score);
-
-    return {
-      topResult: topCandidates[0] || null,
-      songs: filteredSongs,
-      remixes,
-      albums,
-      playlists,
-      genres
-    };
-  }, [activeFilter, query, debouncedQuery, liveSongs]);
-
-  return (
-    <div className="space-y-5">
-      <div className="sticky top-[65px] z-20 space-y-3 bg-[#0a0a0f] pb-2 pt-1 xl:top-0">
-        <h1 className="font-display text-2xl font-semibold text-white">Search</h1>
-        {/* Desktop (xl+) already has a persistent search bar in the top header,
-            so only show this one on smaller screens to avoid a duplicate. */}
-        <div className="xl:hidden">
-          <SearchBar value={query} onChange={setQuery} placeholder="Search songs, artists, moods..." large />
-        </div>
-        <div className="feed-scroll flex gap-2 overflow-x-auto pb-1">
-          {filters.map((filter) => (
-            <GenreChip key={filter} label={filter} active={filter === activeFilter} onClick={() => setActiveFilter(filter)} />
-          ))}
+  if (artistMatch) {
+    return (
+      <div className="flex items-center gap-5 rounded-xl bg-white/[0.06] p-5">
+        <Link to={`/artist/${artist.id}`}>
+          <Artwork src={artist.artwork} className="h-24 w-24 rounded-full sm:h-28 sm:w-28" />
+        </Link>
+        <div className="min-w-0">
+          <Link to={`/artist/${artist.id}`} className="block truncate text-2xl font-bold hover:underline sm:text-3xl">
+            {artist.title}
+          </Link>
+          <p className="text-sm text-yt-muted">Artist{artist.followers ? ` • ${formatCount(artist.followers)} followers` : ""}</p>
+          <div className="mt-4 flex gap-3">
+            <button className="pill-primary" onClick={() => playCollection(artist, { shuffle: true })}>
+              <Play size={16} fill="currentColor" /> Shuffle
+            </button>
+            <button
+              className="pill-outline"
+              onClick={async () => {
+                const tracks = await loadCollectionTracks(artist).catch(() => []);
+                if (tracks[0]) startRadio(tracks[0], `${artist.title} radio`);
+              }}
+            >
+              <Radio size={16} /> Radio
+            </button>
+          </div>
         </div>
       </div>
+    );
+  }
 
-      {isFetching && query ? (
-        <p className="text-xs text-accent-300">Searching live music…</p>
+  if (!song) return null;
+  return (
+    <div className="flex items-center gap-5 rounded-xl bg-white/[0.06] p-5">
+      <Artwork src={song.artwork} className="h-24 w-24 rounded sm:h-28 sm:w-28" />
+      <div className="min-w-0">
+        <p className="truncate text-2xl font-bold sm:text-3xl">{song.title}</p>
+        <p className="truncate text-sm text-yt-muted">Song • {song.artist}</p>
+        <div className="mt-4 flex gap-3">
+          <button className="pill-primary" onClick={() => playTracks(songs, 0, { label: `Search: ${q}`, path: null })}>
+            <Play size={16} fill="currentColor" /> Play
+          </button>
+          <button className="pill-outline" onClick={() => startRadio(song)}>
+            <Radio size={16} /> Radio
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AllResults({ q, setFilter }) {
+  const songs = useSearch("songs", q);
+  const albums = useSearch("albums", q);
+  const artists = useSearch("artists", q);
+  const playlists = useSearch("playlists", q);
+  const community = useSearch("community", q);
+  const from = { label: `Search: ${q}`, path: null };
+
+  if (songs.isLoading && artists.isLoading) return <RowsSkeleton rows={8} />;
+
+  const nothing =
+    !songs.data?.length && !albums.data?.length && !artists.data?.length && !playlists.data?.length && !community.data?.length;
+  if (nothing && !songs.isLoading) {
+    return <p className="pt-16 text-center text-yt-muted">No results for "{q}". Try different keywords.</p>;
+  }
+
+  return (
+    <>
+      <section className="mt-4">
+        <h2 className="mb-4 text-2xl font-bold">Top result</h2>
+        <TopResult q={q} songs={songs.data} artists={artists.data} />
+      </section>
+
+      {songs.data?.length ? (
+        <section className="mt-10">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-2xl font-bold">Songs</h2>
+            <button className="pill-outline h-8 px-3" onClick={() => setFilter("songs")}>
+              Show all
+            </button>
+          </div>
+          {songs.data.slice(0, 5).map((track, i) => (
+            <SongRow key={track.id} track={track} tracks={songs.data} position={i} from={from} />
+          ))}
+        </section>
       ) : null}
 
-      <SearchResults {...results} />
+      {artists.data?.length ? <Shelf title="Artists">{collectionCards(artists.data)}</Shelf> : null}
+      {albums.data?.length ? <Shelf title="Albums">{collectionCards(albums.data)}</Shelf> : null}
+      {playlists.data?.length ? <Shelf title="Playlists">{collectionCards(playlists.data)}</Shelf> : null}
+      {community.data?.length ? (
+        <section className="mt-10">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-2xl font-bold">Community uploads</h2>
+            <button className="pill-outline h-8 px-3" onClick={() => setFilter("community")}>
+              Show all
+            </button>
+          </div>
+          {community.data.slice(0, 4).map((track, i) => (
+            <SongRow key={track.id} track={track} tracks={community.data} position={i} from={from} showAlbum={false} />
+          ))}
+        </section>
+      ) : null}
+    </>
+  );
+}
+
+function FilteredResults({ q, kind }) {
+  const { data = [], isLoading, isError } = useSearch(kind, q);
+  const from = { label: `Search: ${q}`, path: null };
+  if (isLoading) return <RowsSkeleton rows={12} />;
+  if (isError) return <p className="pt-16 text-center text-yt-muted">Search is unavailable right now.</p>;
+  if (!data.length) return <p className="pt-16 text-center text-yt-muted">No {kind} found for "{q}".</p>;
+
+  if (kind === "songs" || kind === "community") {
+    return data.map((track, i) => (
+      <SongRow key={track.id} track={track} tracks={data} position={i} from={from} showAlbum={kind === "songs"} />
+    ));
+  }
+  return (
+    <div className="grid grid-cols-2 gap-x-4 gap-y-8 pt-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+      {data.map((item) => (
+        <MediaCard key={item.id} item={item} className="!w-full" />
+      ))}
+    </div>
+  );
+}
+
+function EmptySearch() {
+  const navigate = useNavigate();
+  const history = useLibraryStore((state) => state.searchHistory);
+  const removeSearch = useLibraryStore((state) => state.removeSearch);
+  const clearSearchHistory = useLibraryStore((state) => state.clearSearchHistory);
+
+  return (
+    <>
+      {history.length ? (
+        <section className="mt-6">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-xl font-bold">Recent searches</h2>
+            <button className="text-sm text-yt-muted hover:text-white" onClick={clearSearchHistory}>
+              Clear all
+            </button>
+          </div>
+          {history.map((query) => (
+            <div key={query} className="flex items-center gap-4 rounded-md px-2 hover:bg-white/10">
+              <History size={20} className="shrink-0 text-yt-muted" />
+              <button
+                className="min-w-0 flex-1 truncate py-3 text-left"
+                onClick={() => navigate(`/search?q=${encodeURIComponent(query)}`)}
+              >
+                {query}
+              </button>
+              <button className="icon-btn" aria-label={`Remove ${query}`} onClick={() => removeSearch(query)}>
+                <X size={18} />
+              </button>
+            </div>
+          ))}
+        </section>
+      ) : null}
+      <section className="mt-8">
+        <h2 className="mb-4 text-xl font-bold">Browse moods & genres</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {[...MOODS, ...GENRES].map((item) => (
+            <Link
+              key={item.slug}
+              to={`/mood/${item.slug}`}
+              className="flex h-12 items-center overflow-hidden rounded-md bg-white/[0.07] font-medium hover:bg-white/[0.15]"
+            >
+              <span className="h-full w-1.5 shrink-0" style={{ background: item.color || "#8b5cf6" }} />
+              <span className="truncate px-4">{item.label}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
+    </>
+  );
+}
+
+export default function Search() {
+  const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const q = (params.get("q") || "").trim();
+  const filter = FILTERS.some((item) => item.id === params.get("filter")) ? params.get("filter") : "all";
+
+  const setFilter = (id) => {
+    const next = new URLSearchParams(params);
+    if (id === "all") next.delete("filter");
+    else next.set("filter", id);
+    setParams(next);
+    window.scrollTo(0, 0);
+  };
+
+  return (
+    <div className="page">
+      {/* Mobile has no top-bar search field, so the page carries its own. */}
+      <div className="sticky top-0 z-20 -mx-4 bg-yt-base px-4 pb-2 pt-3 sm:-mx-6 sm:px-6 lg:hidden">
+        <SearchBox autoFocus={!q} onBack={() => navigate(-1)} />
+      </div>
+
+      {!q ? (
+        <EmptySearch />
+      ) : (
+        <>
+          <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 py-4 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
+            {FILTERS.map((item) => (
+              <button
+                key={item.id}
+                className={clsx("chip", filter === item.id && "chip-active")}
+                onClick={() => setFilter(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          {filter === "all" ? <AllResults q={q} setFilter={setFilter} /> : <FilteredResults q={q} kind={filter} />}
+        </>
+      )}
     </div>
   );
 }

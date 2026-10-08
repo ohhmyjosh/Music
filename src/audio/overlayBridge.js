@@ -61,10 +61,10 @@ function connect() {
         store.pause();
         break;
       case "next":
-        store.nextTrack();
+        store.next();
         break;
       case "prev":
-        store.previousTrack();
+        store.previous();
         break;
       default:
         break;

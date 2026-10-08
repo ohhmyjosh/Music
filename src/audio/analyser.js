@@ -1,6 +1,6 @@
 // Shared Web Audio analyser for the whole app.
 //
-// There is exactly one <audio> element in the app (layout/MiniPlayer). We route
+// There is exactly one <audio> element in the app (player/AudioEngine). We route
 // it through a single AudioContext -> AnalyserNode -> destination so any part of
 // the UI (the waveform visualizer) can read live frequency data without touching
 // playback.

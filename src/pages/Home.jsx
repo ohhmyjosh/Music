@@ -1,285 +1,200 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import SearchBar from "../components/search/SearchBar";
-import SectionShelf from "../components/music/SectionShelf";
-import TrackCard from "../components/music/TrackCard";
-import TrackRow from "../components/music/TrackRow";
-import PlaylistCard from "../components/music/PlaylistCard";
-import GenreChip from "../components/music/GenreChip";
-import { usePlayerStore } from "../store/playerStore";
-import { demoTracks } from "../data/demoTracks";
-import { demoAlbums } from "../data/demoAlbums";
-import { demoPlaylists } from "../data/demoPlaylists";
-import { demoGenres } from "../data/demoGenres";
-import { normalizeTrack } from "../utils/normalizeTrack";
-import { rankTracks } from "../utils/ranking";
-import { fetchAudiusTrending, fetchAudiusByGenre } from "../api/audius";
-import heroBanner from "../assets/branding/banner.png";
+import { useMemo, useState } from "react";
+import clsx from "clsx";
+import Shelf, { ShelfSkeleton } from "../components/music/Shelf";
+import QueryShelf, { collectionCards, songCards } from "../components/music/QueryShelf";
+import MediaCard from "../components/music/MediaCard";
+import QuickPicks from "../components/music/QuickPicks";
+import { Avatar } from "../components/layout/TopBar";
+import { MOODS, newReleaseAlbums, playlistsFor, songsFromTopPlaylist } from "../api/feed";
+import { buildRadio, getArtistCached } from "../api/radio";
+import { fetchAudiusTrending } from "../api/audius";
+import { useLibraryStore } from "../store/libraryStore";
+import { quickPicksSeed, topArtists } from "../utils/taste";
 
-const chips = ["All", "Relax", "Workout", "Focus", "Indie", "R&B", "Hindi", "Downloadable"];
-const catalog = demoTracks.map((track) => normalizeTrack(track, "demo"));
-const personalizedPlaylists = demoPlaylists.filter((playlist) =>
-  [
-    "playlist-josh-rap-mix",
-    "playlist-late-night-rnb",
-    "playlist-focus-lofi",
-    "playlist-pop-drive",
-    "playlist-hindi-mood"
-  ].includes(playlist.id)
-);
-const radioStations = demoPlaylists.filter((playlist) => playlist.id.startsWith("radio-"));
+function capitalize(text) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
-function getGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning, Josh";
-  if (hour < 18) return "Good afternoon, Josh";
-  return "Good evening, Josh";
+function MoodFeed({ mood, languages }) {
+  return (
+    <>
+      <QueryShelf
+        title={`${mood.label} songs`}
+        queryKey={["mood-songs", mood.slug, languages]}
+        queryFn={() => songsFromTopPlaylist(mood.query, languages, 40).then((result) => result.songs)}
+        render={(songs) => <QuickPicks tracks={songs.slice(0, 20)} from={{ label: mood.label, path: null }} />}
+      />
+      <QueryShelf
+        title={`${mood.label} playlists`}
+        moreTo={`/mood/${mood.slug}`}
+        queryKey={["playlists", mood.query, languages]}
+        queryFn={() => playlistsFor(mood.query, languages, 20)}
+        render={collectionCards}
+      />
+      {languages.slice(0, 2).map((lang) => (
+        <QueryShelf
+          key={lang}
+          title={`${mood.label} • ${capitalize(lang)}`}
+          queryKey={["playlists", `${lang} ${mood.query}`, []]}
+          queryFn={() => playlistsFor(`${lang} ${mood.query}`, [], 16)}
+          render={collectionCards}
+        />
+      ))}
+    </>
+  );
+}
+
+function ForYouFeed({ languages }) {
+  const liked = useLibraryStore((state) => state.liked);
+  const history = useLibraryStore((state) => state.history);
+  const playCounts = useLibraryStore((state) => state.playCounts);
+  const disliked = useLibraryStore((state) => state.disliked);
+  const profileName = useLibraryStore((state) => state.profileName);
+
+  // Most-played among recent plays — what you'd actually go back to.
+  const listenAgain = useMemo(() => {
+    const recent = history.slice(0, 60).map((entry, index) => ({
+      track: entry.track,
+      score: (playCounts[entry.track.id] || 1) * 2 + (60 - index) / 10
+    }));
+    return recent.sort((a, b) => b.score - a.score).slice(0, 20).map((entry) => entry.track);
+  }, [history, playCounts]);
+
+  const seed = quickPicksSeed({ liked, history });
+  const artists = useMemo(() => topArtists({ liked, history, playCounts }, 8), [liked, history, playCounts]);
+  const favourite = artists[0];
+
+  return (
+    <>
+      {listenAgain.length >= 4 ? (
+        <Shelf title="Listen again" strapline={profileName || undefined} avatar={<Avatar size={44} />}>
+          {listenAgain.map((track, i) => (
+            <MediaCard
+              key={track.id}
+              item={track}
+              tracks={listenAgain}
+              position={i}
+              size="sm"
+              from={{ label: "Listen again", path: "/history" }}
+            />
+          ))}
+        </Shelf>
+      ) : null}
+
+      <QueryShelf
+        title="Quick picks"
+        strapline={seed ? `Based on ${seed.title}` : "Popular right now"}
+        queryKey={["quick-picks", seed?.id || "trending", languages]}
+        queryFn={async () => {
+          if (seed) {
+            const radio = await buildRadio(seed, { exclude: new Set(disliked), limit: 20 });
+            if (radio.length >= 8) return radio;
+          }
+          return (await songsFromTopPlaylist("trending today", languages, 20)).songs;
+        }}
+        render={(songs) => <QuickPicks tracks={songs} from={{ label: "Quick picks", path: null }} />}
+      />
+
+      {artists.length >= 2 ? (
+        <Shelf title="Mixed for you">
+          {artists.map((artist) => (
+            <MediaCard
+              key={artist.id}
+              item={{
+                kind: "mix",
+                id: `mix-${artist.id}`,
+                title: `${artist.name} Mix`,
+                subtitle: `${artist.name} and similar artists`,
+                artwork: artist.seed.artwork,
+                seed: artist.seed
+              }}
+            />
+          ))}
+        </Shelf>
+      ) : null}
+
+      <QueryShelf
+        title="Trending now"
+        queryKey={["trending-songs", languages]}
+        queryFn={() => songsFromTopPlaylist("trending today", languages, 30).then((result) => result.songs)}
+        render={songCards({ label: "Trending now", path: null })}
+      />
+      <QueryShelf
+        title="Top charts"
+        moreTo="/explore"
+        queryKey={["playlists", "top 50", languages]}
+        queryFn={() => playlistsFor("top 50", languages, 16)}
+        render={collectionCards}
+      />
+      <QueryShelf
+        title="New releases"
+        moreTo="/explore"
+        queryKey={["new-albums", languages]}
+        queryFn={() => newReleaseAlbums(languages)}
+        render={collectionCards}
+      />
+      {favourite ? (
+        <QueryShelf
+          title={`Because you listen to ${favourite.name}`}
+          queryKey={["similar-artists", favourite.id]}
+          queryFn={async () => (await getArtistCached(favourite.id)).similar}
+          round
+          render={collectionCards}
+        />
+      ) : null}
+      {["romance", "party", "relax"].map((slug) => {
+        const mood = MOODS.find((item) => item.slug === slug);
+        return (
+          <QueryShelf
+            key={slug}
+            title={`${mood.label} picks`}
+            moreTo={`/mood/${slug}`}
+            queryKey={["playlists", mood.query, languages]}
+            queryFn={() => playlistsFor(mood.query, languages, 16)}
+            render={collectionCards}
+          />
+        );
+      })}
+      <QueryShelf
+        title="Indie & community uploads"
+        strapline="From the Audius network"
+        queryKey={["audius-trending"]}
+        queryFn={() => fetchAudiusTrending(20)}
+        render={songCards({ label: "Community uploads", path: null })}
+      />
+    </>
+  );
 }
 
 export default function Home() {
-  const navigate = useNavigate();
-  const [search, setSearch] = useState("");
-  const [activeChip, setActiveChip] = useState("All");
-
-  // Enter runs a real, network-backed search on the Search page (Audius).
-  const runSearch = (term) => {
-    const q = term.trim();
-    navigate(q ? `/search?q=${encodeURIComponent(q)}` : "/search");
-  };
-  const currentTrack = usePlayerStore((state) => state.currentTrack);
-  const recentlyPlayed = usePlayerStore((state) => state.recentlyPlayed);
-  const setQueue = usePlayerStore((state) => state.setQueue);
-  const queueLength = usePlayerStore((state) => state.queue.length);
-
-  // Real, streamable music from the free Audius network.
-  const { data: trending = [] } = useQuery({
-    queryKey: ["audius-trending"],
-    queryFn: () => fetchAudiusTrending(20)
-  });
-  const { data: hipHop = [] } = useQuery({
-    queryKey: ["audius-genre", "Hip-Hop/Rap"],
-    queryFn: () => fetchAudiusByGenre("Hip-Hop/Rap", 12)
-  });
-  const { data: electronic = [] } = useQuery({
-    queryKey: ["audius-genre", "Electronic"],
-    queryFn: () => fetchAudiusByGenre("Electronic", 12)
-  });
-  const { data: rnb = [] } = useQuery({
-    queryKey: ["audius-genre", "R&B/Soul"],
-    queryFn: () => fetchAudiusByGenre("R&B/Soul", 12)
-  });
-
-  // Seed the player queue with real trending music once, so the very first Play
-  // (and next/previous) flows through streamable Audius songs rather than nothing.
-  useEffect(() => {
-    if (trending.length && !queueLength) setQueue(trending);
-  }, [trending, queueLength, setQueue]);
-
-  const filteredTracks = useMemo(() => {
-    let next = rankTracks(search, catalog);
-
-    if (activeChip !== "All") {
-      next = next.filter((track) => {
-        const haystack = [track.genre, track.mood, ...(track.tags || [])]
-          .join(" ")
-          .toLowerCase();
-        if (activeChip === "Downloadable") {
-          return Boolean(track.isDownloadable || track.localOnly);
-        }
-        return haystack.includes(activeChip.toLowerCase());
-      });
-    }
-
-    return next;
-  }, [activeChip, search]);
-
-  // Prefer real songs the user actually played; otherwise real trending music.
-  const listenAgain = recentlyPlayed.length
-    ? recentlyPlayed
-    : (trending.length ? trending : filteredTracks).slice(0, 10);
-  const quickPicks = (trending.length ? trending : filteredTracks).slice(0, 6);
+  const [chip, setChip] = useState(null);
+  const languages = useLibraryStore((state) => state.languages);
+  const hydrated = useLibraryStore((state) => state.hydrated);
+  const mood = MOODS.find((item) => item.slug === chip);
 
   return (
-    <div className="space-y-6">
-      <section className="space-y-3.5">
-        <div className="space-y-1">
-          <p className="text-sm text-slate-400">For you</p>
-          <h1 className="font-display text-2xl font-semibold text-white">{getGreeting()}</h1>
-        </div>
-
-        {/* On desktop the sticky header already carries a search box, so this
-            in-page one only shows on mobile to avoid a duplicated search bar. */}
-        <div className="xl:hidden">
-          <SearchBar
-            value={search}
-            onChange={setSearch}
-            onSubmit={runSearch}
-            placeholder="Search all music — press Enter"
-            large
-          />
-        </div>
-
-        <div className="feed-scroll flex gap-2 overflow-x-auto pb-1">
-          {chips.map((chip) => (
-            <GenreChip
-              key={chip}
-              label={chip}
-              active={chip === activeChip}
-              onClick={() => setActiveChip(chip)}
-              tone="green"
-            />
-          ))}
-        </div>
-
-        <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] shadow-[0_14px_36px_rgba(0,0,0,0.24)]">
-          <img
-            src={heroBanner}
-            alt="Josh-Fy banner"
-            className="h-20 w-full object-cover object-left sm:h-24"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/80 to-transparent" />
-          <div className="absolute inset-y-0 left-0 flex max-w-[75%] flex-col justify-center px-4 sm:px-5">
-            <p className="text-[11px] uppercase tracking-[0.3em] text-accent-300">Now spinning</p>
-            <p className="mt-1 font-display text-sm font-semibold text-white sm:text-base">
-              {currentTrack ? currentTrack.title : "Mainstream-inspired demo picks"}
-            </p>
-            <p className="mt-0.5 text-[11px] text-slate-300 sm:text-xs">
-              {currentTrack
-                ? `${currentTrack.artist} - ${currentTrack.genre}`
-                : "Pop, rap, R&B, lo-fi, Hindi, workout, and throwback moods."}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {trending.length ? (
-        <SectionShelf title="Trending now">
-          <div className="feed-scroll flex gap-3 overflow-x-auto pb-1">
-            {trending.map((track) => (
-              <TrackCard key={track.id} track={track} queue={trending} compact />
-            ))}
-          </div>
-        </SectionShelf>
-      ) : null}
-
-      {hipHop.length ? (
-        <SectionShelf title="Hip-Hop right now">
-          <div className="feed-scroll flex gap-3 overflow-x-auto pb-1">
-            {hipHop.map((track) => (
-              <TrackCard key={track.id} track={track} queue={hipHop} compact />
-            ))}
-          </div>
-        </SectionShelf>
-      ) : null}
-
-      {electronic.length ? (
-        <SectionShelf title="Electronic & dance">
-          <div className="feed-scroll flex gap-3 overflow-x-auto pb-1">
-            {electronic.map((track) => (
-              <TrackCard key={track.id} track={track} queue={electronic} compact />
-            ))}
-          </div>
-        </SectionShelf>
-      ) : null}
-
-      {rnb.length ? (
-        <SectionShelf title="R&B & Soul">
-          <div className="feed-scroll flex gap-3 overflow-x-auto pb-1">
-            {rnb.map((track) => (
-              <TrackCard key={track.id} track={track} queue={rnb} compact />
-            ))}
-          </div>
-        </SectionShelf>
-      ) : null}
-
-      <SectionShelf title="Listen again">
-        <div className="feed-scroll flex gap-3 overflow-x-auto pb-1">
-          {listenAgain.map((track) => (
-            <TrackCard key={track.id} track={track} queue={listenAgain} compact />
-          ))}
-        </div>
-      </SectionShelf>
-
-      <SectionShelf title="Quick picks">
-        <div className="space-y-3">
-          {quickPicks.map((track) => (
-            <TrackRow key={track.id} track={track} queue={quickPicks} />
-          ))}
-        </div>
-      </SectionShelf>
-
-      <SectionShelf title="Albums for you">
-        <div className="feed-scroll flex gap-3 overflow-x-auto pb-1">
-          {demoAlbums.map((album) => (
-            <PlaylistCard
-              key={album.id}
-              title={album.title}
-              subtitle={`${album.artist} · ${album.mood}`}
-              artwork={album.image}
-              tracks={filteredTracks.filter((track) => track.album === album.title)}
-              badge="Album"
-              meta={album.genre}
-              compact
-              onOpen={() => window.alert("Album view coming soon.")}
-            />
-          ))}
-        </div>
-      </SectionShelf>
-
-      <SectionShelf title="Made for Josh">
-        <div className="feed-scroll flex gap-3 overflow-x-auto pb-1">
-          {personalizedPlaylists.map((playlist) => (
-            <PlaylistCard
-              key={playlist.id}
-              title={playlist.title}
-              subtitle={`${playlist.genre} · ${playlist.mood}`}
-              artwork={playlist.image}
-              tracks={playlist.tracks.map((track) => normalizeTrack(track, "demo"))}
-              badge="Playlist"
-              meta={playlist.genre}
-              compact
-              onOpen={() => window.alert("Playlist view coming soon.")}
-            />
-          ))}
-        </div>
-      </SectionShelf>
-
-      <SectionShelf title="Moods and genres">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {demoGenres.map((genre) => (
-            <button
-              key={genre.id}
-              className="overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.05] text-left transition hover:bg-white/[0.07]"
-              onClick={() => setActiveChip(genre.label === "Lo-fi" ? "Focus" : genre.label)}
-            >
-              <img src={genre.image} alt={genre.label} className="h-24 w-full object-cover" />
-              <div className="p-3">
-                <p className="text-sm font-semibold text-white">{genre.label}</p>
-                <p className="mt-1 text-xs text-slate-500">{genre.description}</p>
-              </div>
-            </button>
-          ))}
-        </div>
-      </SectionShelf>
-
-      <SectionShelf title="Artist-inspired radios">
-        <div className="feed-scroll flex gap-3 overflow-x-auto pb-1">
-          {radioStations.map((playlist) => (
-            <PlaylistCard
-              key={playlist.id}
-              title={playlist.title}
-              subtitle={`${playlist.genre} · ${playlist.mood}`}
-              artwork={playlist.image}
-              tracks={playlist.tracks.map((track) => normalizeTrack(track, "demo"))}
-              badge="Radio"
-              meta={playlist.genre}
-              compact
-              onOpen={() => window.alert("Radio view coming soon.")}
-            />
-          ))}
-        </div>
-      </SectionShelf>
+    <div className="page">
+      <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 py-4 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
+        {MOODS.map((item) => (
+          <button
+            key={item.slug}
+            className={clsx("chip", chip === item.slug && "chip-active")}
+            onClick={() => setChip(chip === item.slug ? null : item.slug)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      {!hydrated ? (
+        <>
+          <ShelfSkeleton />
+          <ShelfSkeleton />
+        </>
+      ) : mood ? (
+        <MoodFeed key={mood.slug} mood={mood} languages={languages} />
+      ) : (
+        <ForYouFeed languages={languages} />
+      )}
     </div>
   );
 }

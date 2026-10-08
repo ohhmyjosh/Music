@@ -1,155 +1,299 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { buildRadio } from "../api/radio";
+import { slimTrack } from "../utils/track";
+import { useLibraryStore } from "./libraryStore";
 
-// The player's single source of truth. The <audio> element in layout/MiniPlayer
-// mirrors this state; everything else (pages, widget bridge, media keys) talks
-// to the store only.
+// The player's single source of truth. The <audio> element (player/AudioEngine)
+// mirrors this state; every surface — player bar, Now Playing, media keys,
+// desktop widget — talks to the store only.
 //
-// Seeking flows one way: seekTo() posts a pendingSeek, the audio element applies
-// it and calls clearPendingSeek(). That keeps scrubbing from any surface (full
-// player slider, mini-player bar, media keys, desktop widget) on one code path.
+// The queue is YouTube Music's model: an ordered list with a cursor (`index`).
+// Items carry a unique `qid`, so the same song can be queued twice. With
+// Autoplay on, a radio built from the current song is appended whenever the
+// listener nears the end, so the music never just stops.
+
+const QUEUE_LIMIT = 400;
+const AUTOPLAY_THRESHOLD = 2; // songs left before radio tops the queue up
+
+let qidCounter = 0;
+function withQid(track) {
+  qidCounter += 1;
+  return { ...slimTrack(track), qid: `q${Date.now().toString(36)}${qidCounter}` };
+}
+
+function shuffleArray(items) {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+// Fast-moving playback position lives in its own store: it changes several
+// times a second and must never trigger persistence or re-render the queue.
+export const usePlaybackClock = create((set) => ({
+  currentTime: 0,
+  duration: 0,
+  buffered: 0,
+  setTime: (currentTime) => set({ currentTime }),
+  setDuration: (duration) => set({ duration }),
+  setBuffered: (buffered) => set({ buffered })
+}));
+
 export const usePlayerStore = create(
   persist(
-    (set, get) => ({
-      // Start empty: the app opens with no fake "now playing" track. Real,
-      // streamable songs populate the queue as the feed loads.
-      queue: [],
-      currentTrack: null,
-      isPlaying: false,
-      // idle | loading | playing | paused | error — drives buffering spinners
-      // and the "couldn't play" toast.
-      status: "idle",
-      volume: 0.85,
-      muted: false,
-      currentTime: 0,
-      duration: 0,
-      pendingSeek: null,
-      shuffle: false,
-      repeat: "off", // off | all | one
-      likedTrackIds: [],
-      likedTracks: [],
-      recentlyPlayed: [],
+    (set, get) => {
+      // Point the cursor at a queue position and start loading it.
+      const goTo = (index, extra = {}) => {
+        const track = get().queue[index];
+        if (!track) return;
+        usePlaybackClock.setState({ currentTime: 0, duration: track.duration || 0, buffered: 0 });
+        set({ index, currentTrack: track, isPlaying: true, status: "loading", pendingSeek: null, ...extra });
+        get().ensureUpcoming();
+      };
 
-      setQueue: (queue) => set({ queue }),
-      setTrack: (track, queue) =>
-        set((state) => ({
-          currentTrack: track,
-          queue: queue?.length ? queue : state.queue,
-          isPlaying: true,
-          status: "loading",
-          currentTime: 0,
-          pendingSeek: null,
-          recentlyPlayed: [
-            track,
-            ...state.recentlyPlayed.filter((item) => item.id !== track.id)
-          ].slice(0, 12)
-        })),
+      return {
+        queue: [],
+        index: -1,
+        currentTrack: null,
+        isPlaying: false,
+        // idle | loading | playing | paused | error
+        status: "idle",
+        volume: 0.85,
+        muted: false,
+        pendingSeek: null,
+        repeat: "off", // off | all | one
+        shuffle: false,
+        unshuffledOrder: null, // qids in pre-shuffle order, to restore on un-shuffle
+        autoplay: true,
+        autoplayLoading: false,
+        playingFrom: null, // { label, path }
 
-      togglePlay: () => set((state) => ({ isPlaying: !state.isPlaying })),
-      play: () => set({ isPlaying: true }),
-      pause: () => set({ isPlaying: false }),
-      setStatus: (status) => set({ status }),
-
-      setVolume: (volume) => set({ volume, muted: volume === 0 ? get().muted : false }),
-      toggleMute: () => set((state) => ({ muted: !state.muted })),
-
-      setCurrentTime: (currentTime) => set({ currentTime }),
-      setDuration: (duration) => set({ duration }),
-      seekTo: (time) => set({ pendingSeek: Math.max(0, time), currentTime: Math.max(0, time) }),
-      seekBy: (delta) => {
-        const { currentTime, duration } = get();
-        const target = Math.min(Math.max(0, currentTime + delta), duration || Infinity);
-        set({ pendingSeek: target, currentTime: target });
-      },
-      clearPendingSeek: () => set({ pendingSeek: null }),
-
-      toggleShuffle: () => set((state) => ({ shuffle: !state.shuffle })),
-      cycleRepeat: () =>
-        set((state) => ({
-          repeat: state.repeat === "off" ? "all" : state.repeat === "all" ? "one" : "off"
-        })),
-
-      // auto=true means the track ended on its own (vs the user pressing next).
-      // Repeat-one only loops on natural end; a deliberate "next" always moves on.
-      nextTrack: (auto = false) => {
-        const { currentTrack, queue, shuffle, repeat } = get();
-        if (!queue.length) return;
-
-        if (auto && repeat === "one" && currentTrack) {
-          set({ pendingSeek: 0, currentTime: 0, isPlaying: true });
-          return;
-        }
-
-        const currentIndex = queue.findIndex((track) => track.id === currentTrack?.id);
-
-        if (shuffle && queue.length > 1) {
-          let pick = currentIndex;
-          while (pick === currentIndex) {
-            pick = Math.floor(Math.random() * queue.length);
+        // ---- Starting playback ----------------------------------------------
+        // Replace the queue with `tracks` and start at `start` (YT Music: playing
+        // anything from an album/playlist/search makes that list the queue).
+        playTracks: (tracks, start = 0, playingFrom = null) => {
+          const playable = tracks.filter((track) => track && (track.audioUrl || track.source === "local"));
+          if (!playable.length) return;
+          const startTrack = tracks[start];
+          let ordered = playable.map(withQid);
+          let index = Math.max(0, playable.indexOf(startTrack));
+          let unshuffledOrder = null;
+          if (get().shuffle) {
+            unshuffledOrder = ordered.map((item) => item.qid);
+            const first = ordered[index];
+            ordered = [first, ...shuffleArray(ordered.filter((item) => item !== first))];
+            index = 0;
           }
-          set({ currentTrack: queue[pick], isPlaying: true, status: "loading", currentTime: 0 });
-          return;
+          set({ queue: ordered.slice(0, QUEUE_LIMIT), unshuffledOrder, playingFrom });
+          goTo(index);
+        },
+        playTrack: (track, playingFrom = null) => get().playTracks([track], 0, playingFrom),
+        shufflePlay: (tracks, playingFrom = null) => {
+          const playable = tracks.filter((track) => track.audioUrl || track.source === "local");
+          if (!playable.length) return;
+          set({ shuffle: true });
+          get().playTracks(playable, Math.floor(Math.random() * playable.length), playingFrom);
+        },
+
+        // A radio: the seed plays now, similar music fills the queue behind it.
+        startRadio: async (seed, label) => {
+          get().playTracks([seed], 0, { label: label || `${seed.title} radio`, path: null });
+          set({ autoplayLoading: true });
+          try {
+            const disliked = new Set(useLibraryStore.getState().disliked);
+            const radio = await buildRadio(seed, { exclude: disliked, limit: 30 });
+            // The listener may have started something else while this loaded.
+            if (get().queue[0]?.id !== seed.id) return;
+            set((state) => ({ queue: [...state.queue, ...radio.map(withQid)].slice(0, QUEUE_LIMIT) }));
+          } finally {
+            set({ autoplayLoading: false });
+          }
+        },
+
+        // ---- Queue editing ---------------------------------------------------
+        playNext: (tracks) => {
+          const list = (Array.isArray(tracks) ? tracks : [tracks]).map(withQid);
+          const { queue, index } = get();
+          if (index < 0) {
+            get().playTracks(list, 0);
+            return;
+          }
+          set({ queue: [...queue.slice(0, index + 1), ...list, ...queue.slice(index + 1)] });
+        },
+        addToQueue: (tracks) => {
+          const list = (Array.isArray(tracks) ? tracks : [tracks]).map(withQid);
+          if (get().index < 0) {
+            get().playTracks(list, 0);
+            return;
+          }
+          set((state) => ({ queue: [...state.queue, ...list].slice(0, QUEUE_LIMIT) }));
+        },
+        removeFromQueue: (qid) => {
+          const { queue, index } = get();
+          const at = queue.findIndex((item) => item.qid === qid);
+          if (at < 0 || at === index) return;
+          const next = queue.filter((item) => item.qid !== qid);
+          const nextIndex = at < index ? index - 1 : index;
+          set({ queue: next, index: nextIndex, currentTrack: next[nextIndex] || null });
+        },
+        moveInQueue: (from, to) => {
+          const { queue, index } = get();
+          if (from === to || !queue[from] || to < 0 || to >= queue.length) return;
+          const next = [...queue];
+          const [item] = next.splice(from, 1);
+          next.splice(to, 0, item);
+          const current = queue[index];
+          set({ queue: next, index: next.indexOf(current) });
+        },
+        jumpTo: (index) => goTo(index),
+        clearUpNext: () => {
+          const { queue, index } = get();
+          set({ queue: queue.slice(0, index + 1) });
+        },
+
+        // ---- Transport -------------------------------------------------------
+        togglePlay: () => {
+          if (!get().currentTrack) return;
+          set((state) => ({ isPlaying: !state.isPlaying }));
+        },
+        play: () => get().currentTrack && set({ isPlaying: true }),
+        pause: () => set({ isPlaying: false }),
+        setStatus: (status) => set({ status }),
+
+        // auto=true means the song ended on its own (vs the listener pressing
+        // next). Repeat-one only loops on a natural end.
+        next: async (auto = false) => {
+          const { queue, index, repeat, autoplay } = get();
+          if (!queue.length) return;
+          if (auto && repeat === "one") {
+            set({ pendingSeek: 0, isPlaying: true });
+            return;
+          }
+          if (index < queue.length - 1) {
+            goTo(index + 1);
+            return;
+          }
+          if (repeat === "all") {
+            goTo(0);
+            return;
+          }
+          if (autoplay) {
+            await get().ensureUpcoming(true);
+            if (get().index < get().queue.length - 1) {
+              goTo(get().index + 1);
+              return;
+            }
+          }
+          if (auto) set({ isPlaying: false, status: "paused" });
+        },
+        previous: () => {
+          const { index } = get();
+          // YT Music/Spotify: a few seconds in, "previous" restarts the song.
+          if (usePlaybackClock.getState().currentTime > 3 || index <= 0) {
+            get().seekTo(0);
+            set({ isPlaying: true });
+            return;
+          }
+          goTo(index - 1);
+        },
+
+        // Top the queue up with radio when the listener is near its end.
+        ensureUpcoming: async (force = false) => {
+          const { autoplay, autoplayLoading, queue, index, currentTrack } = get();
+          if (!autoplay || autoplayLoading || !currentTrack) return;
+          if (!force && queue.length - 1 - index > AUTOPLAY_THRESHOLD) return;
+          set({ autoplayLoading: true });
+          try {
+            const exclude = new Set([
+              ...queue.map((item) => item.id),
+              ...useLibraryStore.getState().disliked
+            ]);
+            const radio = await buildRadio(currentTrack, { exclude, limit: 15 });
+            if (radio.length) {
+              set((state) => ({
+                queue: [...state.queue, ...radio.map((track) => ({ ...withQid(track), autoplay: true }))]
+                  .slice(-QUEUE_LIMIT)
+              }));
+              // Trimming from the front (very long sessions) shifts the cursor.
+              const current = get().currentTrack;
+              const at = get().queue.findIndex((item) => item.qid === current?.qid);
+              if (at >= 0 && at !== get().index) set({ index: at });
+            }
+          } catch {
+            /* offline or catalog down — the queue simply ends */
+          } finally {
+            set({ autoplayLoading: false });
+          }
+        },
+
+        // ---- Position, volume, modes --------------------------------------------
+        seekTo: (time) => {
+          const target = Math.max(0, time);
+          usePlaybackClock.setState({ currentTime: target });
+          set({ pendingSeek: target });
+        },
+        seekBy: (delta) => {
+          const { currentTime, duration } = usePlaybackClock.getState();
+          get().seekTo(Math.min(Math.max(0, currentTime + delta), duration || Infinity));
+        },
+        clearPendingSeek: () => set({ pendingSeek: null }),
+        setVolume: (volume) => set({ volume: Math.min(1, Math.max(0, volume)), muted: false }),
+        toggleMute: () => set((state) => ({ muted: !state.muted })),
+        cycleRepeat: () =>
+          set((state) => ({ repeat: state.repeat === "off" ? "all" : state.repeat === "all" ? "one" : "off" })),
+        toggleAutoplay: () => {
+          set((state) => ({ autoplay: !state.autoplay }));
+          if (get().autoplay) get().ensureUpcoming();
+        },
+        // Shuffling reorders only what's still to come; un-shuffling restores the
+        // original order around the song that's playing.
+        toggleShuffle: () => {
+          const { shuffle, queue, index, unshuffledOrder } = get();
+          if (!shuffle) {
+            const head = queue.slice(0, index + 1);
+            const tail = shuffleArray(queue.slice(index + 1));
+            set({ shuffle: true, unshuffledOrder: queue.map((item) => item.qid), queue: [...head, ...tail] });
+            return;
+          }
+          if (!unshuffledOrder) {
+            set({ shuffle: false });
+            return;
+          }
+          const position = new Map(unshuffledOrder.map((qid, i) => [qid, i]));
+          const restored = [...queue].sort(
+            (a, b) => (position.get(a.qid) ?? Infinity) - (position.get(b.qid) ?? Infinity)
+          );
+          const current = queue[index];
+          set({ shuffle: false, unshuffledOrder: null, queue: restored, index: restored.indexOf(current) });
         }
-
-        const atEnd = currentIndex === queue.length - 1;
-        if (auto && atEnd && repeat === "off") {
-          // Natural end of the queue: stop cleanly instead of looping forever.
-          set({ isPlaying: false, status: "paused" });
-          return;
-        }
-        const next = queue[(currentIndex + 1) % queue.length];
-        set({ currentTrack: next, isPlaying: true, status: "loading", currentTime: 0 });
-      },
-
-      previousTrack: () => {
-        const { currentTrack, queue, currentTime } = get();
-        // Spotify behavior: past 3s into a song, "previous" restarts it.
-        if (currentTime > 3) {
-          set({ pendingSeek: 0, currentTime: 0, isPlaying: true });
-          return;
-        }
-        if (!queue.length) return;
-        const currentIndex = queue.findIndex((track) => track.id === currentTrack?.id);
-        const previous = queue[(currentIndex - 1 + queue.length) % queue.length];
-        set({ currentTrack: previous, isPlaying: true, status: "loading", currentTime: 0 });
-      },
-
-      playTrackAt: (index) => {
-        const { queue } = get();
-        if (!queue[index]) return;
-        set({ currentTrack: queue[index], isPlaying: true, status: "loading", currentTime: 0 });
-      },
-
-      toggleLike: (trackOrId) => {
-        const id = typeof trackOrId === "object" ? trackOrId.id : trackOrId;
-        const track = typeof trackOrId === "object" ? trackOrId : null;
-        set((state) => {
-          const liked = state.likedTrackIds.includes(id);
-          return {
-            likedTrackIds: liked
-              ? state.likedTrackIds.filter((existing) => existing !== id)
-              : [...state.likedTrackIds, id],
-            likedTracks: liked
-              ? state.likedTracks.filter((existing) => existing.id !== id)
-              : track
-                ? [track, ...state.likedTracks]
-                : state.likedTracks
-          };
-        });
-      }
-    }),
+      };
+    },
     {
-      name: "joshfy-player",
-      // Only durable listener state persists; live playback state never does.
+      name: "joshfy-player-v2",
+      version: 1,
+      // The queue survives a reload (paused at its song, like YT Music); live
+      // playback state never does.
       partialize: (state) => ({
+        queue: state.queue,
+        index: state.index,
+        currentTrack: state.currentTrack,
         volume: state.volume,
         muted: state.muted,
-        shuffle: state.shuffle,
         repeat: state.repeat,
-        likedTrackIds: state.likedTrackIds,
-        likedTracks: state.likedTracks,
-        recentlyPlayed: state.recentlyPlayed
-      })
+        shuffle: state.shuffle,
+        unshuffledOrder: state.unshuffledOrder,
+        autoplay: state.autoplay,
+        playingFrom: state.playingFrom
+      }),
+      onRehydrateStorage: () => (state) => {
+        if (state?.currentTrack) {
+          usePlaybackClock.setState({ duration: state.currentTrack.duration || 0 });
+          usePlayerStore.setState({ status: "paused" });
+        }
+      }
     }
   )
 );
