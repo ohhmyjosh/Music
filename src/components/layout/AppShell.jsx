@@ -1,33 +1,48 @@
-import { Outlet } from "react-router-dom";
 import { useEffect } from "react";
+import { Outlet, useLocation } from "react-router-dom";
+import clsx from "clsx";
 import Sidebar from "./Sidebar";
-import MobileHeader from "./MobileHeader";
-import DesktopHeader from "./DesktopHeader";
+import TopBar from "./TopBar";
 import BottomNav from "./BottomNav";
-import MiniPlayer from "./MiniPlayer";
-import { useLibraryStore } from "../../store/libraryStore";
+import AudioEngine from "../player/AudioEngine";
+import PlayerBar from "../player/PlayerBar";
+import NowPlaying from "../player/NowPlaying";
+import ItemMenu from "../overlays/ItemMenu";
+import PlaylistDialogs from "../overlays/PlaylistDialogs";
+import Toasts from "../overlays/Toasts";
+import { useUiStore } from "../../store/uiStore";
+import { useDownloadsStore } from "../../store/downloadsStore";
 
 export default function AppShell() {
-  const hydrate = useLibraryStore((state) => state.hydrate);
+  const collapsed = useUiStore((state) => state.sidebarCollapsed);
+  const hydrateDownloads = useDownloadsStore((state) => state.hydrate);
+  const { pathname } = useLocation();
 
   useEffect(() => {
-    hydrate();
-  }, [hydrate]);
+    hydrateDownloads();
+  }, [hydrateDownloads]);
+
+  // New page, start at the top (YouTube Music doesn't keep scroll across pages).
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
 
   return (
-    <div className="min-h-[100dvh] bg-slate-950 text-slate-100">
-      <div className="mx-auto flex min-h-[100dvh] max-w-[1500px]">
-        <Sidebar />
-        <div className="min-w-0 flex-1">
-          <MobileHeader />
-          <DesktopHeader />
-          <main className="px-4 pb-[calc(11rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 lg:px-8 xl:px-10 xl:pb-36 xl:pt-8">
-            <Outlet />
-          </main>
-        </div>
+    <div className="min-h-[100dvh] bg-yt-base">
+      <Sidebar />
+      <div className={clsx("min-w-0", collapsed ? "lg:ml-[72px]" : "lg:ml-60")}>
+        <TopBar />
+        <main className="app-main">
+          <Outlet />
+        </main>
       </div>
-      <MiniPlayer />
+      <AudioEngine />
+      <NowPlaying />
+      <PlayerBar />
       <BottomNav />
+      <ItemMenu />
+      <PlaylistDialogs />
+      <Toasts />
     </div>
   );
 }

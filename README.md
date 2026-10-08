@@ -2,103 +2,47 @@
 
 ![Josh-Fy Logo](src/assets/branding/logo.png)
 
-Josh-Fy is a Spotify-inspired music discovery web app built with React, Vite, and Tailwind CSS.
+A free music app laid out like YouTube Music, with Spotify's catalogue feel. No subscriptions,
+no ads, no accounts. Every device keeps its own library.
 
-Tagline: Your music space. Feel every beat.
+## What it does
 
-## Stack
+- **Home**: mood chips, Listen again, Quick picks (radio from what you play), Mixed for you,
+  Trending, Top charts, New releases, and mood shelves, all steered by the languages you pick.
+- **Explore**: new albums and singles, charts, and a Moods & genres grid.
+- **Search**: live suggestions, recent searches, a Top result, and filters for Songs, Albums,
+  Artists, Playlists and Community.
+- **Now Playing**: art or a live visualizer, plus **Up next** (drag to reorder, Autoplay, save
+  the queue), **Lyrics** (time-synced, tap a line to seek) and **Related**.
+- **Library**: Liked Music, your playlists, saved albums and playlists, subscribed artists,
+  downloads, and history.
+- **Album, playlist and artist pages**, including artist radio and Subscribe.
+- **Offline**: download songs or whole playlists, or import audio files from the device.
+- **Share links**: `/watch?v=<id>` opens and plays a song.
+- **Keyboard**: Space play/pause, ←/→ seek, Shift+N/P next/previous, ↑/↓ volume, M mute,
+  `/` search, +/- like/dislike.
+- **PWA**: installable, with lock-screen and media-key controls through MediaSession.
 
-- React
-- Vite
-- Tailwind CSS
-- React Router
-- Zustand
-- TanStack Query
-- Lucide React
-- Dexie kept in the project structure for future offline library work
+## Where the music comes from
 
-## Features in this version
+| Source | Used for | Notes |
+|---|---|---|
+| JioSaavn, via community deployments of the open-source jiosaavn-api | Songs, albums, artists, editorial playlists, 320 kbps streams | Several mirrors are listed in `src/api/saavn.js`; each request fails over between them |
+| Audius | Indie and community uploads | Free, no API key |
+| LRCLIB, with lyrics.ovh as fallback | Synced and plain lyrics | Free, no API key |
+| iTunes Search API | Cover art when a track ships without any | Free, no API key |
 
-- Responsive Spotify-inspired interface
-- Home discovery dashboard with branded hero banner
-- Search experience with free-source adapters and fallback seed data
-- Sticky mini-player and full player page
-- Playlist and library UI foundations
-- Vercel-ready setup with no special config required
-
-## Branding Assets
-
-- Logo: `src/assets/branding/logo.png`
-- Banner: `src/assets/branding/banner.png`
-
-## Environment variables
-
-Copy `.env.example` to `.env` if you want to use a Jamendo API key.
-
-```bash
-cp .env.example .env
-```
-
-Set:
-
-```bash
-VITE_JAMENDO_CLIENT_ID=your_key_here
-```
+No API keys or environment variables are needed.
 
 ## Run locally
 
 ```bash
 npm install
-npm run dev
-```
-
-## Build
-
-```bash
+npm run dev       # http://localhost:5173
 npm run build
-npm run preview
+npm run preview   # serve the production build
 ```
 
-## Deploy to Vercel
+The Windows desktop overlay (`desktop-overlay/`) is unchanged. See its README.
 
-This app is ready to deploy as a standard Vite project.
-
-Build command:
-
-```bash
-npm run build
-```
-
-Output directory:
-
-```bash
-dist
-```
-
-If you use environment variables, add them in the Vercel project settings.
-
-## Platform strategy (maximum per platform)
-
-Each platform is pushed to what it can actually do, rather than to a lowest
-common denominator:
-
-- **Web (browser):** Installable PWA with offline app-shell caching, plus full
-  **MediaSession API** integration — the app owns the OS "now playing" surface
-  (hardware media keys, Windows SMTC flyout, macOS Now Playing / Control Center),
-  with artwork and a live scrubber.
-- **Mobile (installed PWA):** Standalone/fullscreen shell, background audio, and
-  lock-screen / notification media controls via MediaSession (Android, and iOS
-  16.4+ as an installed PWA). Home-screen shortcuts jump to Search and Library.
-  A system-wide overlay isn't possible on mobile, so the in-app full-screen
-  visualizer fills that role.
-- **Windows desktop:** A separate always-on Electron overlay (`desktop-overlay/`)
-  that renders a click-through visualizer just above the taskbar on every
-  monitor. It reacts **only to Josh-Fy**: the web app streams its own analyser
-  data to the overlay over a local WebSocket (`127.0.0.1:17632`), so other apps'
-  audio never triggers it. See `desktop-overlay/README.md`.
-
-## Notes
-
-- No Capacitor or Android native project is included; mobile is delivered as an
-  installable PWA.
-- No APK files are generated.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the app is put together.

@@ -1,65 +1,204 @@
+import { useRef } from "react";
+import clsx from "clsx";
+import { Download, Upload } from "lucide-react";
 import InstallButton from "../components/pwa/InstallButton";
+import { LANGUAGES } from "../api/feed";
+import { useLibraryStore } from "../store/libraryStore";
+import { usePlayerStore } from "../store/playerStore";
+import { useDownloadsStore } from "../store/downloadsStore";
+import { useUiStore } from "../store/uiStore";
+
+function Section({ title, description, children }) {
+  return (
+    <section className="border-b border-white/10 py-6">
+      <h2 className="text-lg font-bold">{title}</h2>
+      {description ? <p className="mt-1 text-sm text-yt-muted">{description}</p> : null}
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+function Switch({ on, onChange, label, hint }) {
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-6 py-2">
+      <span>
+        <span className="block">{label}</span>
+        {hint ? <span className="block text-sm text-yt-muted">{hint}</span> : null}
+      </span>
+      <button
+        role="switch"
+        aria-checked={on}
+        onClick={onChange}
+        className={clsx("relative h-5 w-9 shrink-0 rounded-full transition-colors", on ? "bg-accent-500/60" : "bg-white/30")}
+      >
+        <span
+          className={clsx(
+            "absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full shadow transition-all",
+            on ? "left-4 bg-accent-400" : "left-[-2px] bg-white"
+          )}
+        />
+      </button>
+    </label>
+  );
+}
 
 export default function Settings() {
-  const hasJamendoKey = Boolean(import.meta.env.VITE_JAMENDO_CLIENT_ID);
+  const profileName = useLibraryStore((state) => state.profileName);
+  const setProfileName = useLibraryStore((state) => state.setProfileName);
+  const languages = useLibraryStore((state) => state.languages);
+  const setLanguages = useLibraryStore((state) => state.setLanguages);
+  const exportLibrary = useLibraryStore((state) => state.exportLibrary);
+  const importLibrary = useLibraryStore((state) => state.importLibrary);
+  const clearHistory = useLibraryStore((state) => state.clearHistory);
+  const clearSearchHistory = useLibraryStore((state) => state.clearSearchHistory);
+  const autoplay = usePlayerStore((state) => state.autoplay);
+  const toggleAutoplay = usePlayerStore((state) => state.toggleAutoplay);
+  const downloads = useDownloadsStore((state) => state.items);
+  const removeDownload = useDownloadsStore((state) => state.remove);
+  const toast = useUiStore((state) => state.toast);
+  const fileInput = useRef(null);
 
-  const sections = [
-    {
-      title: "Playback",
-      rows: ["Autoplay queue - On", "Gapless playback - Coming soon"]
-    },
-    {
-      title: "Music sources",
-      rows: [`Jamendo API - ${hasJamendoKey ? "Connected" : "Using fallback data"}`, "Audius discovery - Ready"]
-    },
-    {
-      title: "Downloads",
-      rows: ["Offline mode - Coming soon", "Clear cache - Placeholder action"]
-    },
-    {
-      title: "App",
-      rows: ["About Josh-Fy", "Version 0.1.0"]
+  const toggleLanguage = (lang) => {
+    const next = languages.includes(lang) ? languages.filter((item) => item !== lang) : [...languages, lang];
+    if (!next.length) {
+      toast("Pick at least one language");
+      return;
     }
-  ];
+    setLanguages(next);
+  };
+
+  const backup = () => {
+    const blob = new Blob([JSON.stringify(exportLibrary(), null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `josh-fy-library-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const restore = async (file) => {
+    try {
+      importLibrary(JSON.parse(await file.text()));
+      toast("Library restored and merged");
+    } catch {
+      toast("That file isn't a Josh-Fy backup");
+    }
+  };
+
+  const downloadMb = downloads.reduce((sum, item) => sum + (item.size || 0), 0) / 1e6;
 
   return (
-    <div className="space-y-5">
-      <div>
-        <p className="text-sm text-slate-400">Preferences</p>
-        <h1 className="font-display text-2xl font-semibold text-white">Settings</h1>
-      </div>
+    <div className="page max-w-3xl pt-4">
+      <h1 className="text-3xl font-bold">Settings</h1>
 
-      <section className="rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
-        <h2 className="font-display text-lg font-semibold text-white">Install app</h2>
-        <p className="mt-1 text-sm text-slate-400">
-          Add Josh-Fy to your phone or desktop home screen for a full-screen,
-          app-like experience with offline support.
-        </p>
-        <div className="mt-3">
-          <InstallButton />
+      <Section title="Your profile" description="Josh-Fy has no accounts — your library lives on this device.">
+        <label className="block max-w-sm">
+          <span className="text-xs text-yt-muted">Name shown in the app</span>
+          <input
+            value={profileName}
+            placeholder="Your name"
+            onChange={(event) => setProfileName(event.target.value)}
+            className="mt-1 w-full border-b border-white/30 bg-transparent py-1.5 text-base outline-none focus:border-white"
+          />
+        </label>
+      </Section>
+
+      <Section title="Languages" description="Home, Explore and moods are tuned to the languages you pick.">
+        <div className="flex flex-wrap gap-2">
+          {LANGUAGES.map((lang) => (
+            <button
+              key={lang}
+              onClick={() => toggleLanguage(lang)}
+              className={clsx("chip capitalize", languages.includes(lang) && "chip-active")}
+            >
+              {lang}
+            </button>
+          ))}
         </div>
-      </section>
+      </Section>
 
-      <div className="space-y-4">
-        {sections.map((section) => (
-          <section key={section.title} className="rounded-[24px] border border-white/10 bg-white/[0.04] p-4">
-            <h2 className="font-display text-lg font-semibold text-white">{section.title}</h2>
-            <div className="mt-3 divide-y divide-white/6">
-              {section.rows.map((row) => (
-                <div key={row} className="flex items-center justify-between gap-3 py-3 text-sm text-slate-300">
-                  <span>{row}</span>
-                  <button
-                    className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-slate-400 transition hover:bg-white/5 hover:text-white"
-                    onClick={() => window.alert("This setting is a placeholder for the next version.")}
-                  >
-                    Open
-                  </button>
-                </div>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
+      <Section title="Playback">
+        <Switch
+          on={autoplay}
+          onChange={toggleAutoplay}
+          label="Autoplay"
+          hint="Keep playing similar songs when your queue ends"
+        />
+        <p className="mt-3 text-sm text-yt-muted">
+          Keyboard: Space play/pause · ←/→ seek 10s · Shift+N / Shift+P next/previous · M mute · ↑/↓ volume · / search ·
+          + like · − dislike
+        </p>
+      </Section>
+
+      <Section
+        title="Back up your library"
+        description="Move your likes, playlists and subscriptions to another device. Restoring merges — nothing is overwritten."
+      >
+        <div className="flex flex-wrap gap-3">
+          <button className="pill-outline" onClick={backup}>
+            <Download size={18} /> Export backup
+          </button>
+          <button className="pill-outline" onClick={() => fileInput.current?.click()}>
+            <Upload size={18} /> Restore from file
+          </button>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) restore(file);
+            }}
+          />
+        </div>
+      </Section>
+
+      <Section title="Storage & privacy">
+        <div className="flex flex-wrap gap-3">
+          <button
+            className="pill-outline"
+            onClick={() => {
+              clearHistory();
+              toast("Listening history cleared");
+            }}
+          >
+            Clear listening history
+          </button>
+          <button
+            className="pill-outline"
+            onClick={() => {
+              clearSearchHistory();
+              toast("Search history cleared");
+            }}
+          >
+            Clear search history
+          </button>
+          <button
+            className="pill-outline"
+            disabled={!downloads.length}
+            onClick={async () => {
+              for (const item of downloads) await removeDownload(item.track.id);
+              toast("Downloads removed");
+            }}
+          >
+            Remove all downloads ({downloadMb.toFixed(0)} MB)
+          </button>
+        </div>
+      </Section>
+
+      <Section title="Install app" description="Add Josh-Fy to your home screen for a full-screen app with lock-screen controls.">
+        <InstallButton />
+      </Section>
+
+      <Section title="About">
+        <p className="text-sm leading-6 text-yt-muted">
+          Josh-Fy — free music for everyone. Songs, albums and artists come from the JioSaavn catalog, indie uploads from
+          Audius, lyrics from LRCLIB and lyrics.ovh, cover fixes from iTunes.
+        </p>
+      </Section>
     </div>
   );
 }

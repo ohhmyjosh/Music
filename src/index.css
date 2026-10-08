@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Space+Grotesk:wght@600;700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -6,8 +6,9 @@
 
 :root {
   color-scheme: dark;
-  font-family: Manrope, system-ui, sans-serif;
-  background: #0a0a0f;
+  --player-h: 72px;
+  --mobile-nav-h: 56px;
+  --mobile-mini-h: 64px;
 }
 
 html,
@@ -18,12 +19,13 @@ body,
 
 body {
   margin: 0;
-  min-height: 100vh;
   min-height: 100dvh;
-  background-color: #0a0a0f;
-  background-image: radial-gradient(circle at 15% 0%, rgba(124, 58, 237, 0.2), transparent 30%),
-    radial-gradient(circle at 90% 5%, rgba(6, 182, 212, 0.14), transparent 28%),
-    linear-gradient(180deg, #12101c 0%, #0c0b13 55%, #0a0a0f 100%);
+  background: #030303;
+  color: #fff;
+  font-family: Roboto, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
 }
 
 * {
@@ -35,6 +37,15 @@ input,
 textarea,
 select {
   font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
 }
 
 img {
@@ -42,41 +53,94 @@ img {
   max-width: 100%;
 }
 
+:focus-visible {
+  outline: 2px solid #a78bfa;
+  outline-offset: 2px;
+}
+
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.12);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.35);
+  background: rgba(255, 255, 255, 0.18);
   border-radius: 999px;
 }
 
-.glass-panel {
-  @apply border border-white/10 bg-white/[0.045] backdrop-blur-xl;
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
-.section-title {
-  @apply font-display text-base font-semibold tracking-tight text-slate-100;
+@layer components {
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* YouTube Music's round icon buttons. */
+  .icon-btn {
+    @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 active:bg-white/20 disabled:opacity-30 disabled:hover:bg-transparent;
+  }
+
+  .chip {
+    @apply inline-flex h-8 shrink-0 items-center whitespace-nowrap rounded-lg border border-white/10 bg-white/[0.07] px-3 text-sm font-medium text-white transition-colors hover:bg-white/[0.15];
+  }
+  .chip-active {
+    @apply border-white bg-white text-black hover:bg-white/90;
+  }
+
+  .pill-btn {
+    @apply inline-flex h-9 items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors;
+  }
+  .pill-primary {
+    @apply pill-btn bg-white text-black hover:bg-white/90;
+  }
+  .pill-outline {
+    @apply pill-btn border border-white/20 text-white hover:bg-white/10;
+  }
+
+  .text-secondary {
+    @apply text-white/70;
+  }
+
+  .page {
+    @apply mx-auto w-full max-w-[1480px] px-4 sm:px-6 lg:px-10;
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden bg-white/[0.06];
+  }
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/[0.06] to-transparent;
+  }
+
+  .range {
+    @apply h-1 w-full cursor-pointer appearance-none rounded-full bg-white/20;
+    background-image: linear-gradient(#fff, #fff);
+    background-repeat: no-repeat;
+  }
+  .range::-webkit-slider-thumb {
+    @apply h-3 w-3 appearance-none rounded-full bg-white;
+  }
+  .range::-moz-range-thumb {
+    @apply h-3 w-3 rounded-full border-0 bg-white;
+  }
 }
 
-.feed-scroll {
-  scrollbar-width: none;
+/* Room at the bottom of every page so the player bar never covers content. */
+.app-main {
+  padding-bottom: calc(var(--mobile-nav-h) + var(--mobile-mini-h) + env(safe-area-inset-bottom) + 24px);
 }
-
-.feed-scroll::-webkit-scrollbar {
-  display: none;
+@media (min-width: 1024px) {
+  .app-main {
+    padding-bottom: calc(var(--player-h) + 32px);
+  }
 }
-
-.soft-ring {
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 18px 70px rgba(124, 58, 237, 0.18);
-}
-
-.app-surface {
-  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
-}
-

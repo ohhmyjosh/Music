@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Josh-Fy brand: violet core (#7C3AED / #8B5CF6) with pink + cyan accents.
+        // Josh-Fy brand violet, used where YouTube Music uses its red.
         accent: {
           50: "#f5f3ff",
           100: "#ede9fe",
@@ -17,27 +17,43 @@ export default {
           800: "#5b21b6",
           900: "#4c1d95"
         },
-        brand: {
-          purple: "#7c3aed",
-          violet: "#8b5cf6",
-          pink: "#ec4899",
-          cyan: "#06b6d4",
-          ink: "#0a0a0f",
-          panel: "#1a1a23",
-          elevated: "#2a2a3a",
-          mist: "#e5e7eb"
+        // YouTube Music's dark surfaces.
+        yt: {
+          base: "#030303",
+          raised: "#0f0f0f",
+          bar: "#212121",
+          menu: "#282828",
+          border: "rgba(255,255,255,0.1)",
+          muted: "#aaaaaa",
+          dim: "#717171"
         }
       },
-      boxShadow: {
-        glow: "0 0 0 1px rgba(255,255,255,0.05), 0 30px 120px rgba(124,58,237,0.22)"
-      },
-      backgroundImage: {
-        aurora:
-          "radial-gradient(circle at top left, rgba(124,58,237,0.22), transparent 26%), radial-gradient(circle at top right, rgba(6,182,212,0.16), transparent 24%), radial-gradient(circle at 50% 120%, rgba(236,72,153,0.14), transparent 40%), linear-gradient(180deg, #12101c 0%, #0c0b13 52%, #0a0a0f 100%)"
-      },
       fontFamily: {
-        sans: ["Manrope", "system-ui", "sans-serif"],
-        display: ["Space Grotesk", "system-ui", "sans-serif"]
+        sans: ["Roboto", "system-ui", "sans-serif"],
+        display: ["Space Grotesk", "Roboto", "system-ui", "sans-serif"]
+      },
+      keyframes: {
+        "slide-up": {
+          from: { transform: "translateY(100%)" },
+          to: { transform: "translateY(0)" }
+        },
+        "fade-in": { from: { opacity: "0" }, to: { opacity: "1" } },
+        "pop-in": {
+          from: { opacity: "0", transform: "scale(0.96)" },
+          to: { opacity: "1", transform: "scale(1)" }
+        },
+        eq: {
+          "0%, 100%": { transform: "scaleY(0.3)" },
+          "50%": { transform: "scaleY(1)" }
+        },
+        shimmer: { "100%": { transform: "translateX(100%)" } }
+      },
+      animation: {
+        "slide-up": "slide-up 280ms cubic-bezier(0.2, 0, 0, 1)",
+        "fade-in": "fade-in 180ms ease-out",
+        "pop-in": "pop-in 140ms ease-out",
+        eq: "eq 900ms ease-in-out infinite",
+        shimmer: "shimmer 1.4s infinite"
       }
     }
   },

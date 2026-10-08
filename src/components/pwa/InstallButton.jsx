@@ -6,7 +6,8 @@ import { Download, Share, Check } from "lucide-react";
 // Chrome/Edge (Android + desktop) fire `beforeinstallprompt`; we stash the event
 // and trigger the native install sheet on tap. iOS Safari has no such API, so we
 // show the manual "Share -> Add to Home Screen" instructions instead.
-export default function InstallButton() {
+// `compact` (top bar) renders only the install pill, and only when installable.
+export default function InstallButton({ compact = false }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [installed, setInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
@@ -45,6 +46,15 @@ export default function InstallButton() {
     await deferredPrompt.userChoice;
     setDeferredPrompt(null);
   };
+
+  if (compact) {
+    return deferredPrompt && !installed ? (
+      <button onClick={install} className="pill-outline h-8 px-3" aria-label="Install Josh-Fy">
+        <Download size={16} />
+        <span className="hidden sm:inline">Install</span>
+      </button>
+    ) : null;
+  }
 
   if (installed) {
     return (
