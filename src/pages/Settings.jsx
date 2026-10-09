@@ -7,6 +7,7 @@ import { useLibraryStore } from "../store/libraryStore";
 import { usePlayerStore } from "../store/playerStore";
 import { useDownloadsStore } from "../store/downloadsStore";
 import { useUiStore } from "../store/uiStore";
+import { useSettingsStore } from "../store/settingsStore";
 
 function Section({ title, description, children }) {
   return (
@@ -55,6 +56,8 @@ export default function Settings() {
   const toggleAutoplay = usePlayerStore((state) => state.toggleAutoplay);
   const downloads = useDownloadsStore((state) => state.items);
   const removeDownload = useDownloadsStore((state) => state.remove);
+  const visualizer = useSettingsStore((state) => state.visualizer);
+  const toggleVisualizer = useSettingsStore((state) => state.toggleVisualizer);
   const toast = useUiStore((state) => state.toast);
   const fileInput = useRef(null);
 
@@ -129,6 +132,22 @@ export default function Settings() {
           Keyboard: Space play/pause · ←/→ seek 10s · Shift+N / Shift+P next/previous · M mute · ↑/↓ volume · / search ·
           + like · − dislike
         </p>
+      </Section>
+
+      <Section
+        title="Music visualizer"
+        description="Draws the music that's playing in Now Playing and on the Josh-Fy desktop overlay. Music plays exactly the same with it off."
+      >
+        <Switch
+          on={visualizer}
+          onChange={toggleVisualizer}
+          label="Music visualizer"
+          hint={
+            visualizer
+              ? "On. If the browser's audio processing ever fails, it steps aside and the music keeps playing."
+              : "Off. No audio processing, nothing sent to the desktop overlay."
+          }
+        />
       </Section>
 
       <Section

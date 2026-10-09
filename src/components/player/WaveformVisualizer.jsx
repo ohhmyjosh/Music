@@ -65,8 +65,12 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
         if (!freqData || freqData.length !== analyser.frequencyBinCount) {
           freqData = new Uint8Array(analyser.frequencyBinCount);
         }
-        analyser.getByteFrequencyData(freqData);
-        // Cross-origin / tainted streams report all-zero data; detect that.
+        try {
+          analyser.getByteFrequencyData(freqData);
+        } catch {
+          freqData.fill(0);
+        }
+        // All zeros means no audio is reaching the analyser yet.
         for (let i = 0; i < freqData.length; i += 1) {
           if (freqData[i] > 0) {
             hasRealData = true;
@@ -76,8 +80,6 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
       }
 
       const t = now / 1000;
-      // ~120bpm beat envelope for the simulated fallback.
-      const beat = Math.pow(Math.max(0, Math.sin(t * Math.PI * 2)), 6);
 
       const heights = heightsRef.current;
       for (let i = 0; i < BARS_PER_SIDE; i += 1) {
@@ -87,13 +89,9 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
           const bin = Math.floor((i / BARS_PER_SIDE) * freqData.length * 0.75);
           value = freqData[bin] / 255;
         } else {
-          // Layered sines + beat pulse make a lively, music-like wave.
-          const wave =
-            0.5 +
-            0.28 * Math.sin(t * 3.1 + i * 0.55) +
-            0.18 * Math.sin(t * 1.7 - i * 0.31) +
-            0.12 * Math.sin(t * 5.3 + i * 0.9);
-          value = Math.max(0, wave) * (0.45 + 0.55 * beat);
+          // No audio data (analyser not routed yet, or unavailable): a calm,
+          // low idle ripple. It never pretends to be the music.
+          value = 0.06 + 0.04 * Math.sin(t * 1.4 + i * 0.35);
         }
 
         // Taper the ends so the wave reads as a rounded envelope.
@@ -124,12 +122,14 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
       // lower band where they read as an equalizer without washing out the text.
       const maxBarHeight = h * (variant === "mini" ? 0.6 : 0.92);
 
-      // Monochrome white bars: soft at the base, bright at the peaks. Reads as a
-      // clean black-and-white equalizer rather than a coloured light show.
-      const gradient = ctx.createLinearGradient(0, h, 0, 0);
-      gradient.addColorStop(0, "rgba(255, 255, 255, 0.10)");
-      gradient.addColorStop(0.55, "rgba(255, 255, 255, 0.45)");
-      gradient.addColorStop(1, "rgba(255, 255, 255, 0.95)");
+      // Josh-Fy's palette across the width: cyan -> blue -> violet -> magenta,
+      // kept translucent so it reads as light, not an RGB light show. A
+      // vertical mask fades the base so bars rise out of the background.
+      const gradient = ctx.createLinearGradient(0, 0, w, 0);
+      gradient.addColorStop(0, "rgba(34, 211, 238, 0.75)");
+      gradient.addColorStop(0.35, "rgba(59, 130, 246, 0.75)");
+      gradient.addColorStop(0.65, "rgba(139, 92, 246, 0.75)");
+      gradient.addColorStop(1, "rgba(236, 72, 153, 0.75)");
       ctx.fillStyle = gradient;
       // No canvas shadowBlur here: blurring ~84 rounded bars every frame is
       // extremely expensive (especially on phones). The vertical gradient alone
@@ -153,6 +153,13 @@ export default function WaveformVisualizer({ variant = "ambient" }) {
         ctx.closePath();
         ctx.fill();
       }
+      const fade = ctx.createLinearGradient(0, h, 0, h - maxBarHeight);
+      fade.addColorStop(0, "rgba(0, 0, 0, 0.55)");
+      fade.addColorStop(1, "rgba(0, 0, 0, 0)");
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.fillStyle = fade;
+      ctx.fillRect(0, h - maxBarHeight, w, maxBarHeight);
+      ctx.globalCompositeOperation = "source-over";
 
       rafRef.current = requestAnimationFrame(draw);
     };

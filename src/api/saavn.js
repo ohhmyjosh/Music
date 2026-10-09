@@ -6,13 +6,54 @@
 // shape, CORS enabled). Individual deployments come and go, so every request
 // tries the mirror that last answered first and fails over to the others; one
 // dead mirror can never take the app down while another is alive.
+//
+// Stream URLs in the responses point at Saavn's own CDN whichever mirror served
+// them, so switching mirrors never changes what a track is or how it plays.
 const MIRRORS = [
   "https://saavn-api.nandanvarma.com/api",
   "https://jiosavan-api2.vercel.app/api",
   "https://saavn.dev/api"
 ];
+const TIMEOUT_MS = 7000;
+// A mirror that times out or errors sits out for a while (15s, doubling to
+// 5 min) so every request doesn't pay its timeout again. It is still tried as
+// a last resort when every healthy mirror has failed.
+const COOLDOWN_MS = 15000;
+const MAX_COOLDOWN_MS = 5 * 60 * 1000;
+
+// kind "not-found": the catalogue answered and has no such item (don't retry).
+// kind "unavailable": no mirror could answer at all.
+export class CatalogError extends Error {
+  constructor(kind, message) {
+    super(message);
+    this.name = "CatalogError";
+    this.kind = kind;
+  }
+}
+
+export const isNotFound = (error) => error?.kind === "not-found";
 
 let preferred = 0;
+const health = MIRRORS.map(() => ({ failures: 0, downUntil: 0 }));
+
+function markDown(index) {
+  const mirror = health[index];
+  mirror.failures += 1;
+  mirror.downUntil = Date.now() + Math.min(COOLDOWN_MS * 2 ** (mirror.failures - 1), MAX_COOLDOWN_MS);
+}
+
+function markUp(index) {
+  health[index].failures = 0;
+  health[index].downUntil = 0;
+  preferred = index;
+}
+
+// Healthy mirrors first (the last one that answered leading), then cooling ones.
+function mirrorOrder() {
+  const now = Date.now();
+  const order = MIRRORS.map((_, i) => (preferred + i) % MIRRORS.length);
+  return [...order.filter((i) => health[i].downUntil <= now), ...order.filter((i) => health[i].downUntil > now)];
+}
 
 function fetchWithTimeout(url, ms) {
   const controller = new AbortController();
@@ -21,21 +62,49 @@ function fetchWithTimeout(url, ms) {
 }
 
 async function request(path) {
-  let lastError = null;
-  for (let attempt = 0; attempt < MIRRORS.length; attempt += 1) {
-    const index = (preferred + attempt) % MIRRORS.length;
+  let notFound = false;
+  for (const index of mirrorOrder()) {
+    // A healthy mirror already said "not found": don't wait on a sick one too.
+    if (notFound && health[index].downUntil > Date.now()) break;
+    let response;
     try {
-      const response = await fetchWithTimeout(`${MIRRORS[index]}${path}`, 9000);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const json = await response.json();
-      if (json?.success === false) throw new Error(json.message || "request failed");
-      preferred = index;
-      return json.data;
-    } catch (error) {
-      lastError = error;
+      response = await fetchWithTimeout(`${MIRRORS[index]}${path}`, TIMEOUT_MS);
+    } catch {
+      markDown(index); // network error or timeout
+      continue;
     }
+    // 4xx is the mirror answering "no such thing"; it's healthy, but another
+    // deployment (a different API version) may still have it.
+    if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+      notFound = true;
+      continue;
+    }
+    if (!response.ok) {
+      markDown(index);
+      continue;
+    }
+    let json;
+    try {
+      json = await response.json();
+    } catch {
+      markDown(index); // HTML error page or a truncated body
+      continue;
+    }
+    if (json?.success === false || json?.data == null) {
+      notFound = true;
+      continue;
+    }
+    markUp(index);
+    return json.data;
   }
-  throw lastError || new Error("All Saavn mirrors are unreachable");
+  if (notFound) throw new CatalogError("not-found", "Not found in the catalogue");
+  throw new CatalogError("unavailable", "The music catalogue is unavailable right now");
+}
+
+// Some mirrors answer an unknown album/playlist id with 200 and an empty shell.
+function requireId(data) {
+  if (!data?.id) throw new CatalogError("not-found", "Not found in the catalogue");
+  return data;
 }
 
 // Saavn text fields arrive HTML-encoded ("Hips Don&#039;t Lie"), and some are
@@ -188,15 +257,15 @@ export async function searchPlaylists(query, limit = 20) {
 }
 
 export async function getAlbum(id) {
-  return mapAlbum(await request(`/albums?id=${q(id)}`));
+  return mapAlbum(requireId(await request(`/albums?id=${q(id)}`)));
 }
 
 export async function getPlaylist(id, limit = 100) {
-  return mapPlaylist(await request(`/playlists?id=${q(id)}&limit=${limit}`));
+  return mapPlaylist(requireId(await request(`/playlists?id=${q(id)}&limit=${limit}`)));
 }
 
 export async function getArtist(id) {
-  return mapArtist(await request(`/artists/${q(id)}`));
+  return mapArtist(requireId(await request(`/artists/${q(id)}`)));
 }
 
 export async function getArtistSongs(id, page = 0) {

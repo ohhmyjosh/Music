@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import { getAlbum, getPlaylist } from "../api/saavn";
+import { getAlbum, getPlaylist, isNotFound } from "../api/saavn";
 import { getArtistCached } from "../api/radio";
 import { usePlayerStore } from "../store/playerStore";
 import { useUiStore } from "../store/uiStore";
@@ -10,7 +10,9 @@ export const queryClient = new QueryClient({
       staleTime: 10 * 60 * 1000, // catalog data barely changes within a session
       gcTime: 30 * 60 * 1000,
       refetchOnWindowFocus: false,
-      retry: 1
+      // The client already fails over across mirrors; one more try covers a
+      // blip. "Not found" is an answer, so it is never retried.
+      retry: (failures, error) => failures < 1 && !isNotFound(error)
     }
   }
 });
